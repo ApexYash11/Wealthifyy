@@ -1,202 +1,187 @@
-# Wealthify - Personal Finance Dashboard
+# 💰 Wealthify - Personal Finance Management App
 
-A modern Next.js 14 application for tracking personal finances with AI-powered predictions.
+A modern, AI-powered personal finance application built with Next.js 14, featuring expense tracking, financial insights, and predictive analytics.
 
-## Features
+![Wealthify Dashboard](https://img.shields.io/badge/Status-Development-blue)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-38B2AC)
 
-- 🔐 **Authentication**: Secure login and registration system
-- 📊 **Expense Tracking**: Track expenses across 12 categories
-- 📈 **Visual Analytics**: Interactive charts and tables
-- 🤖 **AI Predictions**: Get expense and savings predictions
-- 📱 **Responsive Design**: Works on desktop and mobile
-- 🌙 **Dark Mode**: Built-in theme support
+## ✨ Features
 
-## Tech Stack
+### 🎯 Core Features
+- **Expense Tracking**: Monitor spending with beautiful charts and breakdowns
+- **AI-Powered Insights**: Get personalized predictions and financial tips
+- **Dashboard Analytics**: Comprehensive overview of your financial health
+- **Transaction Management**: Add, edit, and categorize transactions
+- **Investment Tracking**: Monitor portfolio performance and asset allocation
+- **Goal Setting**: Set and track financial goals
+- **Predictive Analytics**: AI-driven expense predictions and savings forecasts
 
-- **Framework**: Next.js 14 with App Router
-- **Styling**: TailwindCSS + shadcn/ui components
-- **Authentication**: JWT-based with localStorage
-- **Charts**: Recharts for data visualization
-- **Forms**: React Hook Form with Zod validation
-- **HTTP Client**: Axios for API calls
-- **Icons**: Lucide React
+### 🎨 UI/UX Features
+- **Modern Dark Theme**: Purple-accented Wealthify branding
+- **Responsive Design**: Works seamlessly on desktop and mobile
+- **Real-time Updates**: Live data synchronization
+- **Interactive Charts**: Beautiful visualizations with ApexCharts
+- **Smooth Animations**: Enhanced user experience with Framer Motion
 
-## API Endpoints
+## 🛠️ Tech Stack
 
-The frontend integrates with the following backend endpoints:
+### Frontend
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type-safe development
+- **TailwindCSS** - Utility-first CSS framework
+- **shadcn/ui** - Modern component library
+- **Framer Motion** - Animation library
+- **ApexCharts** - Interactive charts
+- **React Hook Form** - Form management
+- **Zod** - Schema validation
 
-- `POST /login` - User authentication
-- `POST /register` - User registration
-- `GET /expenses/:user_id?month=` - Fetch user expenses
-- `POST /expenses` - Add new expense
-- `POST /predict-expense` - Get expense predictions
-- `POST /predict/savings` - Get savings predictions
+### Backend Integration
+- **FastAPI** - Python backend for authentication and predictions
+- **Supabase** - PostgreSQL database for data storage
+- **JWT** - Authentication tokens
+- **Axios** - HTTP client for API calls
 
-## Project Structure
-
-```
-├── app/                    # Next.js App Router pages
-│   ├── login/             # Login page
-│   ├── register/          # Registration page
-│   ├── dashboard/         # Main dashboard
-│   ├── add-expense/       # Add expense form
-│   ├── predictions/       # AI predictions page
-│   └── layout.tsx         # Root layout
-├── components/            # Reusable UI components
-│   ├── ui/               # shadcn/ui components
-│   ├── ExpenseTable.tsx  # Expense data table
-│   └── ExpenseChart.tsx  # Expense visualization
-├── context/              # React contexts
-│   └── AuthContext.tsx   # Authentication context
-├── lib/                  # Utility libraries
-│   └── api.ts           # API client configuration
-├── hooks/                # Custom React hooks
-└── middleware.ts         # Next.js middleware
-```
-
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-
 - Node.js 18+ 
 - pnpm (recommended) or npm
+- Git
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd wealthify
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/wealthify.git
+   cd wealthify
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pnpm install
+   # or
+   npm install
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Add your environment variables:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. **Run the development server**
+   ```bash
+   pnpm dev
+   # or
+   npm run dev
+   ```
+
+5. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 📁 Project Structure
+
+```
+wealthify/
+├── app/                    # Next.js App Router pages
+│   ├── dashboard/         # Dashboard page
+│   ├── transactions/      # Transaction management
+│   ├── insights/          # Financial insights
+│   ├── predictions/       # AI predictions
+│   ├── investments/       # Investment tracking
+│   ├── settings/          # User settings
+│   ├── login/            # Authentication
+│   └── register/         # User registration
+├── components/            # Reusable UI components
+│   ├── ui/               # shadcn/ui components
+│   └── ...               # Custom components
+├── lib/                  # Utility functions and API
+├── hooks/                # Custom React hooks
+├── context/              # React context providers
+└── public/               # Static assets
 ```
 
-2. Install dependencies:
-```bash
-pnpm install
-```
+## 🎯 Key Features Explained
 
-3. Set up environment variables:
-```bash
-# Create .env.local file
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
+### Dashboard
+- **Summary Cards**: Quick overview of income, expenses, savings, and investments
+- **Spending Chart**: Doughnut chart showing expense breakdown by category
+- **Recent Transactions**: Latest transaction history
+- **Quick Actions**: Add transactions, view insights, and more
 
-4. Run the development server:
-```bash
-pnpm dev
-```
+### Transactions
+- **Modern Card Layout**: Clean, card-based transaction list
+- **Smart Filtering**: Filter by date, category, and amount
+- **AI Suggestions**: Intelligent transaction categorization
+- **Bulk Actions**: Select and manage multiple transactions
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+### Insights
+- **Spending Patterns**: Analyze your spending habits
+- **Category Breakdown**: Visual representation of expenses
+- **Trend Analysis**: Track spending trends over time
+- **AI Recommendations**: Personalized financial advice
 
-## Pages Overview
+### Predictions
+- **Expense Forecasting**: Predict future expenses using AI
+- **Savings Projections**: Estimate potential savings
+- **Budget Recommendations**: AI-powered budget suggestions
+- **Financial Goals**: Set and track financial objectives
 
-### 1. Login Page (`/login`)
-- Email and password authentication
-- Form validation with Zod
-- Redirects to dashboard on success
+## 🔧 Configuration
 
-### 2. Register Page (`/register`)
-- User registration with name, email, and password
-- Password confirmation validation
-- Automatic login after successful registration
+### TailwindCSS
+The project uses TailwindCSS with custom configuration for the Wealthify theme:
+- Purple color palette
+- Dark mode support
+- Custom animations
+- Responsive breakpoints
 
-### 3. Dashboard (`/dashboard`)
-- Overview of financial data
-- Expense chart visualization
-- Quick action buttons
-- Navigation to other features
+### shadcn/ui Components
+All UI components are built using shadcn/ui for consistency and maintainability.
 
-### 4. Add Expense (`/add-expense`)
-- Form with 12 expense categories:
-  - Food & Dining
-  - Transportation
-  - Entertainment
-  - Shopping
-  - Healthcare
-  - Education
-  - Housing
-  - Utilities
-  - Insurance
-  - Savings
-  - Debt Payments
-  - Other
-- Real-time total calculation
-- Month selection
+## 🚀 Deployment
 
-### 5. Predictions (`/predictions`)
-- Income input form
-- Month selection
-- Two prediction cards:
-  - Predicted Expenses
-  - Predicted Savings
-- Percentage breakdowns
-- AI explanation section
+### Vercel (Recommended)
+1. Connect your GitHub repository to Vercel
+2. Set environment variables in Vercel dashboard
+3. Deploy automatically on push to main branch
 
-## Authentication Flow
+### Other Platforms
+- **Netlify**: Build command: `npm run build`
+- **Railway**: Supports Next.js out of the box
+- **AWS Amplify**: Full-stack deployment solution
 
-1. **Login**: Users enter email/password → JWT stored in localStorage
-2. **Registration**: New users create account → Automatic login
-3. **Protected Routes**: All pages except login/register require authentication
-4. **Logout**: Clears localStorage and redirects to login
-
-## API Integration
-
-The application uses a centralized API client (`lib/api.ts`) with:
-
-- Automatic JWT token injection
-- Error handling and 401 redirects
-- TypeScript interfaces for all API calls
-- Axios interceptors for request/response handling
-
-## Styling
-
-- **TailwindCSS**: Utility-first CSS framework
-- **shadcn/ui**: High-quality React components
-- **Responsive Design**: Mobile-first approach
-- **Dark Mode**: System preference detection
-
-## Development
-
-### Available Scripts
-
-```bash
-pnpm dev          # Start development server
-pnpm build        # Build for production
-pnpm start        # Start production server
-pnpm lint         # Run ESLint
-```
-
-### Code Quality
-
-- TypeScript for type safety
-- ESLint for code linting
-- Prettier for code formatting
-- Zod for runtime validation
-
-## Deployment
-
-The application can be deployed to:
-
-- **Vercel** (recommended for Next.js)
-- **Netlify**
-- **Railway**
-- Any Node.js hosting platform
-
-### Environment Variables
-
-Set the following environment variables in production:
-
-```bash
-NEXT_PUBLIC_API_URL=https://your-backend-api.com
-```
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 📝 License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **shadcn/ui** for the beautiful component library
+- **ApexCharts** for interactive data visualizations
+- **Framer Motion** for smooth animations
+- **TailwindCSS** for the utility-first styling approach
+
+## 📞 Support
+
+For support, email yashmaheshwari441@gmail.com or create an issue in this repository.
+
+---
+
+**Built with ❤️ by Yash Maheshwari** 
