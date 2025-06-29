@@ -1,0 +1,14 @@
+<svg width="160" height="48" viewBox="0 0 160 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wealthify-gradient" x1="0" y1="0" x2="0" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <!-- W Icon -->
+  <g>
+    <path d="M10 38L20 10L30 38L40 10L50 38" stroke="url(#wealthify-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <!-- Wealthify Text -->
+  <text x="60" y="34" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="bold" fill="url(#wealthify-gradient)">Wealthify</text>
+</svg>
