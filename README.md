@@ -54,8 +54,8 @@ A modern, AI-powered personal finance application built with Next.js 14, featuri
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/wealthify.git
-   cd wealthify
+   git clone https://github.com/ApexYash11/Wealthify.git
+   cd Wealthify
    ```
 
 2. **Install dependencies**
@@ -184,4 +184,4 @@ For support, email yashmaheshwari441@gmail.com or create an issue in this reposi
 
 ---
 
-**Built with ❤️ by Yash Maheshwari** 
+**Built with ❤️ by Yash Maheshwari**
