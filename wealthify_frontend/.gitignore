@@ -1,0 +1,22 @@
+# Node.js
+node_modules/
+
+# Next.js
+.next/
+
+# Python
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+**/.env
+
+# Build output
+dist/
+out/

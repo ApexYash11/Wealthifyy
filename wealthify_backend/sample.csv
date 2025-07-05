@@ -1,0 +1,4 @@
+user_id,month,rent,loan_repayment,insurance,groceries,transport,eating_out,entertainment,utilities,healthcare,education,miscellaneous,total_expense
+1,Apr-2024,12000,2000,1500,4000,1000,800,500,1200,600,1000,300,24600
+1,May-2024,12000,2000,1500,4200,1100,900,600,1300,700,1000,400,24700
+1,Jun-2024,12000,2000,1500,4100,1050,850,550,1250,650,1000,350,24400
