@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation"
 
 // Update the component to use the router
 export default function Login() {
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
@@ -30,14 +30,14 @@ export default function Login() {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-          username: email, // adjust if your backend expects 'email' instead
+          username: username,
           password: password,
         }),
       })
       if (!res.ok) throw new Error('Login failed')
       const data = await res.json()
       localStorage.setItem('jwt', data.token)
-      localStorage.setItem('user', JSON.stringify({ id: data.user_id, email: email, name: email.split('@')[0] }))
+      localStorage.setItem('user', JSON.stringify({ id: data.user_id, username: username, name: username }))
       router.push('/dashboard')
     } catch (err) {
       alert('Login failed. Please check your credentials.')
@@ -70,13 +70,13 @@ export default function Login() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="username"
+                  type="text"
+                  placeholder="your_username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   className="h-11"
                 />
