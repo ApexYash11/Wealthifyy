@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useAuth } from "@/context/AuthContext"
 import { dashboardAPI, transactionAPI, TransactionRequest } from "@/lib/api"
 
 export interface Transaction {
@@ -64,6 +63,19 @@ const categoryIcons: Record<string, string> = {
   Investment: "📈",
 }
 
+// Helper to decode JWT and extract user ID
+function getUserIdFromToken() {
+  if (typeof window === 'undefined') return null;
+  const token = localStorage.getItem('jwt');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub || null;
+  } catch {
+    return null;
+  }
+}
+
 export function useFinancialData() {
   const [data, setData] = useState<FinancialData>({
     totalBalance: 0,
@@ -77,17 +89,17 @@ export function useFinancialData() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { user } = useAuth()
 
   // Load dashboard data from backend
   const loadDashboardData = async () => {
-    if (!user) return
+    const userId = getUserIdFromToken();
+    if (!userId) return;
 
     try {
       setLoading(true)
       setError(null)
       
-      const response = await dashboardAPI.getDashboardData(parseInt(user.id))
+      const response = await dashboardAPI.getDashboardData(parseInt(userId))
       const dashboardData = response.data
 
       // Transform backend data to frontend format
@@ -126,17 +138,19 @@ export function useFinancialData() {
 
   // Load data when user changes
   useEffect(() => {
-    if (user) {
-      loadDashboardData()
+    const userId = getUserIdFromToken();
+    if (userId) {
+      loadDashboardData();
     }
-  }, [user])
+  }, [])
 
   const addTransaction = async (transaction: Omit<Transaction, "id">) => {
-    if (!user) return
+    const userId = getUserIdFromToken();
+    if (!userId) return;
 
     try {
       const transactionData: TransactionRequest = {
-        user_id: parseInt(user.id),
+        user_id: parseInt(userId),
         type: transaction.type,
         description: transaction.description,
         amount: transaction.amount,
@@ -162,9 +176,10 @@ export function useFinancialData() {
   }
 
   const updateSavingsGoal = async (amount: number) => {
-    if (!user) return;
+    const userId = getUserIdFromToken();
+    if (!userId) return;
     try {
-      await dashboardAPI.updateSavingsGoal(parseInt(user.id), amount);
+      await dashboardAPI.updateSavingsGoal(parseInt(userId), amount);
       await loadDashboardData();
     } catch (err) {
       console.error("Error updating savings goal:", err);

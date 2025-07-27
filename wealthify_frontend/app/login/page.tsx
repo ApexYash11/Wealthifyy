@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(3, 'Username is required'),
   password: z.string().min(6),
 });
 
@@ -31,19 +31,27 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      await login(data);
-      toast({
-        title: 'Success',
-        description: 'Logged in successfully!',
+      const formData = new FormData();
+      formData.append('username', data.username);
+      formData.append('password', data.password);
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/login', {
+        method: 'POST',
+        body: formData,
       });
-      router.push('/dashboard');
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'Login failed',
-        variant: 'destructive',
-      });
-    } finally {
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Login failed');
+        setLoading(false);
+        return;
+      }
+      const result = await res.json();
+      // Store the token in localStorage
+      localStorage.setItem('jwt', result.token);
+      setLoading(false);
+      // Optionally store user info as well
+      window.location.href = '/dashboard';
+    } catch (e) {
+      alert('Login failed');
       setLoading(false);
     }
   };
@@ -65,9 +73,9 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
-              <Label htmlFor="email" className="text-purple-700 dark:text-purple-200">Email</Label>
-              <Input id="email" type="email" {...register('email')} className="mt-1" />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+              <Label htmlFor="username" className="text-purple-700 dark:text-purple-200">Username</Label>
+              <Input id="username" type="text" {...register('username')} className="mt-1" />
+              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
             </div>
             <div>
               <Label htmlFor="password" className="text-purple-700 dark:text-purple-200">Password</Label>

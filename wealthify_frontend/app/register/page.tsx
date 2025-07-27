@@ -13,9 +13,13 @@ import { Label } from '@/components/ui/label';
 import ThemeToggle from '@/components/ThemeToggle';
 
 const registerSchema = z.object({
+  username: z.string().min(3, 'Username is required'),
   email: z.string().email(),
   password: z.string().min(6),
   confirmPassword: z.string().min(6),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
 
 export default function RegisterPage() {
@@ -27,11 +31,29 @@ export default function RegisterPage() {
 
   const onSubmit = async (data) => {
     setLoading(true);
-    // TODO: Add register logic
-    setTimeout(() => {
+    try {
+      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: data.username,
+          email: data.email,
+          password: data.password,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Registration failed');
+        setLoading(false);
+        return;
+      }
       setLoading(false);
-      router.push('/dashboard');
-    }, 1000);
+      // Optionally store token, etc.
+      window.location.href = '/dashboard';
+    } catch (e) {
+      alert('Registration failed');
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,6 +73,11 @@ export default function RegisterPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
+              <Label htmlFor="username" className="text-purple-700 dark:text-purple-200">Username</Label>
+              <Input id="username" type="text" {...register('username')} className="mt-1" />
+              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
+            </div>
+            <div>
               <Label htmlFor="email" className="text-purple-700 dark:text-purple-200">Email</Label>
               <Input id="email" type="email" {...register('email')} className="mt-1" />
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
@@ -63,7 +90,7 @@ export default function RegisterPage() {
             <div>
               <Label htmlFor="confirmPassword" className="text-purple-700 dark:text-purple-200">Confirm Password</Label>
               <Input id="confirmPassword" type="password" {...register('confirmPassword')} className="mt-1" />
-              {watch('password') !== watch('confirmPassword') && <p className="text-red-500 text-xs mt-1">Passwords do not match</p>}
+              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
             </div>
             <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-md hover:from-purple-700 hover:to-indigo-700 transition-all duration-200" disabled={loading}>
               {loading ? 'Registering...' : 'Register'}

@@ -34,29 +34,54 @@ import {
   LinearScale,
   CategoryScale,
 } from 'chart.js';
-import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { formatRupees } from '@/lib/utils';
 import ThemeToggle from '@/components/ThemeToggle';
+import type { Transaction } from "@/components/add-transaction-modal";
 
 ChartJS.register(ArcElement, ChartTooltip, ChartLegend, LineElement, PointElement, LinearScale, CategoryScale);
+
+// Helper to decode JWT and extract user name
+function getUserNameFromToken() {
+  if (typeof window === 'undefined') return 'User';
+  const token = localStorage.getItem('jwt');
+  if (!token) return 'User';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.username || payload.name || payload.user || payload.email || 'User';
+  } catch {
+    return 'User';
+  }
+}
 
 export default function DashboardPage() {
   const { data, addTransaction, updateSavings, updateSavingsGoal, loading, error } = useFinancialData();
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false);
   const [isEditSavingsModalOpen, setIsEditSavingsModalOpen] = useState(false);
-  const { isAuthenticated, loading: authLoading, user } = useAuth();
   const router = useRouter();
 
+  // Handler for adding a transaction
+  const handleAddTransaction = async (transaction: Transaction) => {
+    try {
+      await addTransaction(transaction);
+      // Optionally, you can call refreshData() if available from useFinancialData
+      if (typeof window !== 'undefined') {
+        // Force a reload of dashboard data if needed
+        window.location.reload();
+      }
+      setIsAddTransactionModalOpen(false);
+    } catch (e) {
+      alert('Failed to add transaction. Please try again.');
+    }
+  };
+
+  // JWT token check
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
+    if (!token) {
       router.replace('/login');
     }
-  }, [isAuthenticated, authLoading, router]);
-
-  if (authLoading || !isAuthenticated) {
-    return null; // or a spinner
-  }
+  }, [router]);
 
   if (loading) {
     return (
@@ -86,13 +111,6 @@ export default function DashboardPage() {
       </main>
     );
   }
-
-  const quickActions = [
-    { title: "Send Money", icon: <Wallet className="h-5 w-5" />, color: "bg-blue-500" },
-    { title: "Add Card", icon: <CreditCard className="h-5 w-5" />, color: "bg-purple-500" },
-    { title: "Pay Bills", icon: <IndianRupee className="h-5 w-5" />, color: "bg-green-500" },
-    { title: "Settings", icon: <Settings className="h-5 w-5" />, color: "bg-orange-500" },
-  ];
 
   // Prepare data for charts
   const investments = data.investments || [];
@@ -142,20 +160,104 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="p-8 min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <ThemeToggle />
+    <div className="p-8 min-h-screen bg-gradient-to-br from-[#181c2a] to-[#232946]">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-4xl font-extrabold mb-1">
+            Welcome back, <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">{getUserNameFromToken()}</span>
+          </h1>
+          <p className="text-gray-400 text-lg">Here's your financial overview</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <Button
+            className="bg-gradient-to-r from-purple-500 to-purple-700 text-white font-semibold shadow-md hover:from-purple-600 hover:to-purple-800 px-6 py-2 text-lg"
+            onClick={() => setIsAddTransactionModalOpen(true)}
+          >
+            + Add Transaction
+          </Button>
+          <AddTransactionModal
+            isOpen={isAddTransactionModalOpen}
+            onClose={() => setIsAddTransactionModalOpen(false)}
+            onAddTransaction={handleAddTransaction}
+          />
+        </div>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Your account summary goes here.</p>
-          <Button className="mt-4">Add Funds</Button>
-        </CardContent>
-      </Card>
+
+      {/* Main Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg font-semibold">Total Balance</CardTitle>
+            <IndianRupee className="h-6 w-6 text-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold mb-1">₹{data.totalBalance}</div>
+            <div className="text-green-400 text-sm flex items-center gap-1">+2.5% from last month</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg font-semibold">Monthly Income</CardTitle>
+            <ArrowUpCircle className="h-6 w-6 text-green-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold mb-1">₹{data.monthlyIncome}</div>
+            <div className="text-gray-400 text-sm">Last updated today</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg font-semibold">Monthly Expenses</CardTitle>
+            <ArrowDownCircle className="h-6 w-6 text-red-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold mb-1">₹{data.monthlyExpenses}</div>
+            <div className="text-red-400 text-sm flex items-center gap-1">+12% from last month</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg font-semibold">Savings Goal</CardTitle>
+            <PiggyBank className="h-6 w-6 text-purple-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold mb-1">₹{data.savingsGoal}</div>
+            <div className="w-full bg-gray-700 rounded-full h-2 mb-1">
+              <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.min(100, (data.currentSavings / data.savingsGoal) * 100)}%` }}></div>
+            </div>
+            <div className="text-gray-400 text-sm">₹{data.savingsGoal - data.currentSavings} to goal</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Spending Breakdown */}
+      <div className="bg-[#181c2a] rounded-2xl shadow-lg p-6 mb-8">
+        <h3 className="text-2xl font-bold text-white mb-2">Monthly Spending Breakdown</h3>
+        <p className="text-gray-400 mb-6">Your spending categorized by type</p>
+        <div className="space-y-4">
+          {data.spendingCategories.map((cat, idx) => (
+            <div key={cat.category} className="mb-2">
+              <div className="flex justify-between items-center mb-1">
+                <span className={`font-semibold`} style={{ color: vibrantColors[idx % vibrantColors.length] }}>{cat.category}</span>
+                <span className="text-white font-semibold">₹{cat.amount}</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width: `${cat.percentage}%`,
+                    background: vibrantColors[idx % vibrantColors.length],
+                  }}
+                ></div>
+              </div>
+              <div className="text-right text-gray-400 text-xs mt-1">{cat.percentage}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Add more sections here for Recent Transactions, Investments, etc. */}
     </div>
   );
 }
