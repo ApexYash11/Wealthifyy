@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, Download, Upload, Tag, Repeat, Sparkles, Search } from "lucide-react";
+import { Calendar, Download, Tag, Repeat, Sparkles, Search, BarChart3, List } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { transactionAPI } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import Papa from "papaparse";
 import { formatRupees } from '@/lib/utils';
+import TransactionChart from "@/components/TransactionChart";
 
 interface Transaction {
   id: number;
@@ -45,6 +46,7 @@ export default function TransactionsPage() {
   const [category, setCategory] = useState("");
   const [showRecurring, setShowRecurring] = useState(false);
   const [showAllModal, setShowAllModal] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "chart">("list");
   const { user } = useAuth();
 
   useEffect(() => {
@@ -79,22 +81,7 @@ export default function TransactionsPage() {
   const totalSpent = transactions.filter(tx => tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
   const totalRecurring = transactions.filter(tx => tx.type === "expense" && !!tx.recurring).reduce((sum, tx) => sum + tx.amount, 0);
 
-  // Import handler
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      complete: (results) => {
-        // Here you would send results.data to your backend
-        console.log("Imported transactions:", results.data);
-        // Optionally, update state or call API to save
-      },
-      error: (err) => {
-        alert("Failed to parse file: " + err.message);
-      }
-    });
-  };
+
 
   // Export handler
   const handleExport = () => {
@@ -174,59 +161,82 @@ export default function TransactionsPage() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+          
+          {/* View Toggle Buttons */}
+          <div className="flex gap-2">
+            <Button 
+              variant={viewMode === "list" ? "default" : "outline"} 
+              className={viewMode === "list" ? "bg-gradient-to-r from-purple-700 to-purple-500 text-white border-none" : "border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20"}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-4 h-4 mr-2" /> List
+            </Button>
+            <Button 
+              variant={viewMode === "chart" ? "default" : "outline"} 
+              className={viewMode === "chart" ? "bg-gradient-to-r from-purple-700 to-purple-500 text-white border-none" : "border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20"}
+              onClick={() => setViewMode("chart")}
+            >
+              <BarChart3 className="w-4 h-4 mr-2" /> Charts
+            </Button>
+          </div>
+          
           <Button variant={showRecurring ? "default" : "outline"} className="bg-gradient-to-r from-purple-700 to-purple-500 text-white border-none" onClick={() => setShowRecurring(r => !r)}>
             <Repeat className="w-4 h-4 mr-2" /> Recurring
           </Button>
-          <Button variant="outline" className="border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20" onClick={() => document.getElementById('import-input')?.click()}>
-            <Upload className="w-4 h-4 mr-2" /> Import
-          </Button>
-          <input
-            id="import-input"
-            type="file"
-            accept=".csv"
-            style={{ display: 'none' }}
-            onChange={handleImport}
-          />
           <Button variant="outline" className="border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" /> Export
           </Button>
         </div>
 
-        {/* Transaction List */}
-        <div className="rounded-2xl bg-gradient-to-b from-[#18181a] to-[#111113] shadow-lg p-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-1">Transactions</h2>
-              <p className="text-gray-400 text-sm">Your latest financial activities</p>
-            </div>
-            <Button variant="outline" className="border-gray-700 text-white bg-black/30 hover:bg-black/50" onClick={() => setShowAllModal(true)}>
-              View All <span className="ml-2">&rarr;</span>
-            </Button>
-          </div>
-          <div className="flex flex-col gap-4">
-            {filtered.map((tx) => (
-              <div
-                key={tx.id}
-                className={`flex items-center gap-4 rounded-xl px-6 py-5 ${tx.type === "income" ? "bg-[#232325]" : "bg-[#18181a]"}`}
-              >
-                <div className="flex-shrink-0">
-                  <div className="rounded-full bg-black/30 p-2 flex items-center justify-center text-2xl">
-                    {categoryIcons[tx.category] || "📋"}
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="text-white font-semibold text-lg flex items-center gap-2">
-                    {tx.description}
-                  </div>
-                  <div className="text-gray-400 text-xs mt-1">{tx.date}</div>
-                </div>
-                <div className={`text-lg font-bold ${tx.type === "income" ? "text-green-400" : "text-red-400"}`}>
-                  {tx.type === "expense" ? '-' : '+'}{formatRupees(Math.abs(tx.amount))}
-                </div>
+        {/* Main Content Area */}
+        {viewMode === "list" ? (
+          /* Transaction List */
+          <div className="rounded-2xl bg-gradient-to-b from-[#18181a] to-[#111113] shadow-lg p-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-1">Transactions</h2>
+                <p className="text-gray-400 text-sm">Your latest financial activities</p>
               </div>
-            ))}
+              <Button variant="outline" className="border-gray-700 text-white bg-black/30 hover:bg-black/50" onClick={() => setShowAllModal(true)}>
+                View All <span className="ml-2">&rarr;</span>
+              </Button>
+            </div>
+            <div className="flex flex-col gap-4">
+              {filtered.map((tx) => (
+                <div
+                  key={tx.id}
+                  className={`flex items-center gap-4 rounded-xl px-6 py-5 ${tx.type === "income" ? "bg-[#232325]" : "bg-[#18181a]"}`}
+                >
+                  <div className="flex-shrink-0">
+                    <div className="rounded-full bg-black/30 p-2 flex items-center justify-center text-2xl">
+                      {categoryIcons[tx.category] || "📋"}
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-white font-semibold text-lg flex items-center gap-2">
+                      {tx.description}
+                    </div>
+                    <div className="text-gray-400 text-xs mt-1">{tx.date}</div>
+                  </div>
+                  <div className={`text-lg font-bold ${tx.type === "income" ? "text-green-400" : "text-red-400"}`}>
+                    {tx.type === "expense" ? '-' : '+'}{formatRupees(Math.abs(tx.amount))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Chart View */
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-gradient-to-b from-[#18181a] to-[#111113] shadow-lg p-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-white mb-1">Transaction Analytics</h2>
+                <p className="text-gray-400 text-sm">Visual breakdown of your spending patterns</p>
+              </div>
+              <TransactionChart />
+            </div>
+          </div>
+        )}
 
         {/* View All Modal */}
         <Dialog open={showAllModal} onOpenChange={setShowAllModal}>
