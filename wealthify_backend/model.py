@@ -24,7 +24,8 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    savings_goal = Column(Float, default=10000.0)
+    savings_goal = Column(Float, default=float(os.getenv("DEFAULT_SAVINGS_GOAL", "10000.0")))
+    current_savings = Column(Float, default=0.0)  # User-editable current savings
     is_admin = Column(Boolean, default=False)
     assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
     snapshots = relationship("PortfolioSnapshot", back_populates="user", cascade="all, delete-orphan")

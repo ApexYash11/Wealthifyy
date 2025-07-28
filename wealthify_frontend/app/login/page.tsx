@@ -31,27 +31,20 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('username', data.username);
-      formData.append('password', data.password);
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/login', {
-        method: 'POST',
-        body: formData,
+      await login(data);
+      toast({
+        title: 'Success',
+        description: 'Login successful!',
       });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.detail || 'Login failed');
-        setLoading(false);
-        return;
-      }
-      const result = await res.json();
-      // Store the token in localStorage
-      localStorage.setItem('jwt', result.token);
-      setLoading(false);
-      // Optionally store user info as well
-      window.location.href = '/dashboard';
-    } catch (e) {
-      alert('Login failed');
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Login failed. Please check your credentials.',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
     }
   };

@@ -1,21 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  const { message } = await req.json();
-  // Get JWT from cookies (assumes cookie name is 'token')
-  const token = req.cookies.get('token')?.value;
-  if (!token) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  try {
+    const { message } = await req.json();
+    console.log('🔍 DEBUG: Frontend received message:', message);
+    
+    // Get JWT from Authorization header or cookies
+    const authHeader = req.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '') || req.cookies.get('token')?.value;
+    console.log('🔍 DEBUG: Token exists:', !!token);
+    
+    if (!token) {
+      console.log('❌ DEBUG: No token found');
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+    
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000/feedback';
+    console.log('🔍 DEBUG: Sending to backend URL:', backendUrl);
+    console.log('🔍 DEBUG: Sending message as:', message);
+    
+    const res = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(message), // Send message as direct string, not object
+    });
+    
+    console.log('🔍 DEBUG: Backend response status:', res.status);
+    const data = await res.json();
+    console.log('🔍 DEBUG: Backend response data:', data);
+    
+    return NextResponse.json(data, { status: res.status });
+  } catch (error) {
+    console.error('❌ DEBUG: Feedback API error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000/feedback';
-  const res = await fetch(backendUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ message }),
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
 } 

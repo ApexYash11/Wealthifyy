@@ -29,27 +29,67 @@ export default function SettingsPage() {
 
   const handleSendFeedback = async () => {
     if (!feedback.trim()) {
-      toast({ title: "Please enter feedback before sending.", variant: "destructive" });
+      toast({ 
+        title: "Please enter feedback before sending.", 
+        variant: "destructive" 
+      });
       return;
     }
+    
     setLoading(true);
     setShowSuccess(false);
+    
     try {
+      // Get JWT token from localStorage
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        toast({ 
+          title: "Authentication required", 
+          description: "Please log in again to send feedback.",
+          variant: "destructive" 
+        });
+        return;
+      }
+      
       const res = await fetch("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: feedback }),
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(feedback),
       });
+      
       if (res.ok) {
-        toast({ title: "Feedback sent! Thank you." });
+        // Show success toast
+        toast({ 
+          title: "Feedback sent successfully! 🎉", 
+          description: "Thank you for your feedback. We'll review it and get back to you soon.",
+          variant: "default"
+        });
+        
+        // Clear the feedback text
         setFeedback("");
+        
+        // Show success state on button
         setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 2000);
+        
+        // Hide success state after 3 seconds
+        setTimeout(() => setShowSuccess(false), 3000);
       } else {
-        toast({ title: "Failed to send feedback.", variant: "destructive" });
+        const errorData = await res.json();
+        toast({ 
+          title: "Failed to send feedback.", 
+          description: errorData.error || "Please try again later.",
+          variant: "destructive" 
+        });
       }
     } catch (e) {
-      toast({ title: "Error sending feedback.", variant: "destructive" });
+      toast({ 
+        title: "Error sending feedback.", 
+        description: "Please check your connection and try again.",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
@@ -132,25 +172,69 @@ export default function SettingsPage() {
                 <div>
                   <div className="mb-2 font-semibold">Send Feedback</div>
                   <Textarea
-                    className="bg-[#18181a] text-white mb-2"
-                    placeholder="Your feedback or message..."
+                    className="bg-[#18181a] text-white mb-2 min-h-[120px]"
+                    placeholder="Share your thoughts, suggestions, or report any issues you've encountered..."
                     value={feedback}
-                    onChange={e => setFeedback(e.target.value)}
+                    onChange={e => {
+                      const value = e.target.value;
+                      if (value.length <= 1000) {
+                        setFeedback(value);
+                      }
+                    }}
                     disabled={loading || showSuccess}
+                    maxLength={1000}
                   />
-                  <Button
-                    className="bg-gradient-to-r from-purple-700 to-purple-500 text-white flex items-center justify-center"
-                    onClick={handleSendFeedback}
-                    disabled={loading || showSuccess}
-                  >
-                    {loading ? (
-                      <span className="flex items-center gap-2"><svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>Sending...</span>
-                    ) : showSuccess ? (
-                      <span className="flex items-center gap-2 text-green-400"><CheckCircle className="h-5 w-5" /> Sent!</span>
-                    ) : (
-                      "Send"
-                    )}
-                  </Button>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm ${
+                      feedback.length > 800 
+                        ? 'text-red-400' 
+                        : feedback.length > 600 
+                        ? 'text-yellow-400' 
+                        : 'text-gray-400'
+                    }`}>
+                      {feedback.length}/1000 characters
+                    </div>
+                    <Button
+                      className={`flex items-center justify-center transition-all duration-300 ${
+                        showSuccess 
+                          ? 'bg-green-600 hover:bg-green-700 text-white' 
+                          : 'bg-gradient-to-r from-purple-700 to-purple-500 hover:from-purple-800 hover:to-purple-600 text-white'
+                      }`}
+                      onClick={handleSendFeedback}
+                      disabled={loading || showSuccess || !feedback.trim()}
+                    >
+                      {loading ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                          </svg>
+                          Sending...
+                        </span>
+                      ) : showSuccess ? (
+                        <span className="flex items-center gap-2 text-white">
+                          <CheckCircle className="h-5 w-5" /> 
+                          Feedback Sent Successfully!
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <MessageCircle className="h-4 w-4" />
+                          Send Feedback
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                  {showSuccess && (
+                    <div className="mt-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-400">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">Thank you for your feedback!</span>
+                      </div>
+                      <p className="text-green-300 text-sm mt-1">
+                        Your feedback has been saved and will be reviewed by our team.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

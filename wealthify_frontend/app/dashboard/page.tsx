@@ -17,11 +17,14 @@ import {
   ChevronRight,
   IndianRupee,
   Edit,
+  BarChart2,
+  CheckCircle,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import AddTransactionModal from "@/components/add-transaction-modal";
 import EditSavingsModal from "@/components/edit-savings-modal";
 import { useFinancialData } from "@/hooks/use-financial-data";
+import { useAuth } from "@/context/AuthContext";
 import { Toaster } from "@/components/toaster";
 import { Doughnut, Line, Pie } from 'react-chartjs-2';
 import {
@@ -41,24 +44,19 @@ import type { Transaction } from "@/components/add-transaction-modal";
 
 ChartJS.register(ArcElement, ChartTooltip, ChartLegend, LineElement, PointElement, LinearScale, CategoryScale);
 
-// Helper to decode JWT and extract user name
-function getUserNameFromToken() {
-  if (typeof window === 'undefined') return 'User';
-  const token = localStorage.getItem('jwt');
-  if (!token) return 'User';
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.username || payload.name || payload.user || payload.email || 'User';
-  } catch {
-    return 'User';
-  }
-}
-
 export default function DashboardPage() {
   const { data, addTransaction, updateSavings, updateSavingsGoal, loading, error } = useFinancialData();
+  const { user } = useAuth();
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false);
   const [isEditSavingsModalOpen, setIsEditSavingsModalOpen] = useState(false);
   const router = useRouter();
+
+  // Get user's display name
+  const getUserDisplayName = () => {
+    if (user?.name) return user.name;
+    if (user?.email) return user.email.split('@')[0]; // Use email prefix as fallback
+    return 'User';
+  };
 
   // Handler for adding a transaction
   const handleAddTransaction = async (transaction: Transaction) => {
@@ -112,41 +110,9 @@ export default function DashboardPage() {
     );
   }
 
-  // Prepare data for charts
-  const investments = data.investments || [];
-  const portfolioHistory = data.portfolioHistory || [];
-  const assetLabels = investments.map((inv: any) => inv.name);
-  const assetValues = investments.map((inv: any) => inv.value);
-  const pieData = {
-    labels: assetLabels,
-    datasets: [
-      {
-        data: assetValues,
-        backgroundColor: [
-          '#a259ff',
-          '#6ec1e4',
-          '#ffb366',
-          '#b5ead7',
-          '#f67280',
-          '#355c7d',
-        ],
-        borderWidth: 1,
-      },
-    ],
-  };
-  const lineData = {
-    labels: portfolioHistory.map((h: any) => new Date(h.timestamp).toLocaleDateString()),
-    datasets: [
-      {
-        label: 'Portfolio Value',
-        data: portfolioHistory.map((h: any) => h.value),
-        borderColor: '#a259ff',
-        backgroundColor: 'rgba(162,89,255,0.1)',
-        tension: 0.4,
-        fill: true,
-      },
-    ],
-  };
+  // Calculate top category and savings rate
+  const topCategory = data.spendingCategories.length > 0 ? data.spendingCategories[0] : null;
+  const savingsRate = data.monthlyIncome > 0 ? Math.round((data.currentSavings / data.monthlyIncome) * 100) : 0;
 
   // Define vibrantColors for both chart and breakdown
   const vibrantColors = [
@@ -165,7 +131,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-extrabold mb-1">
-            Welcome back, <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">{getUserNameFromToken()}</span>
+            Welcome back, <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">{getUserDisplayName()}</span>
           </h1>
           <p className="text-gray-400 text-lg">Here's your financial overview</p>
         </div>
@@ -193,8 +159,13 @@ export default function DashboardPage() {
             <IndianRupee className="h-6 w-6 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.totalBalance}</div>
-            <div className="text-green-400 text-sm flex items-center gap-1">+2.5% from last month</div>
+            <div className="text-3xl font-bold mb-1">₹{data.totalBalance.toLocaleString()}</div>
+            <div className="text-green-400 text-sm flex items-center gap-1">
+              {data.lastMonthBalance > 0 ? 
+                `${data.totalBalance > data.lastMonthBalance ? '+' : ''}${(((data.totalBalance - data.lastMonthBalance) / data.lastMonthBalance) * 100).toFixed(1)}% from last month` :
+                'New this month'
+              }
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
@@ -213,21 +184,38 @@ export default function DashboardPage() {
             <ArrowDownCircle className="h-6 w-6 text-red-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.monthlyExpenses}</div>
-            <div className="text-red-400 text-sm flex items-center gap-1">+12% from last month</div>
+            <div className="text-3xl font-bold mb-1">₹{data.monthlyExpenses.toLocaleString()}</div>
+            <div className="text-red-400 text-sm flex items-center gap-1">
+              {data.lastMonthExpenses > 0 ? 
+                `${data.monthlyExpenses > data.lastMonthExpenses ? '+' : ''}${(((data.monthlyExpenses - data.lastMonthExpenses) / data.lastMonthExpenses) * 100).toFixed(1)}% from last month` :
+                'New this month'
+              }
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg font-semibold">Savings Goal</CardTitle>
-            <PiggyBank className="h-6 w-6 text-purple-400" />
+            <div className="flex items-center gap-2">
+              <PiggyBank className="h-6 w-6 text-purple-400" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditSavingsModalOpen(true)}
+                className="p-1 h-8 w-8 text-purple-400 hover:text-purple-300 hover:bg-purple-400/10"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.savingsGoal}</div>
+            <div className="text-3xl font-bold mb-1">₹{data.savingsGoal.toLocaleString()}</div>
             <div className="w-full bg-gray-700 rounded-full h-2 mb-1">
               <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.min(100, (data.currentSavings / data.savingsGoal) * 100)}%` }}></div>
             </div>
-            <div className="text-gray-400 text-sm">₹{data.savingsGoal - data.currentSavings} to goal</div>
+            <div className="text-gray-400 text-sm">
+              ₹{(data.savingsGoal - data.currentSavings).toLocaleString()} to goal
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -257,6 +245,17 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Edit Savings Modal */}
+      <EditSavingsModal
+        isOpen={isEditSavingsModalOpen}
+        onClose={() => setIsEditSavingsModalOpen(false)}
+        currentSavings={data.currentSavings}
+        savingsGoal={data.savingsGoal}
+        onUpdateSavings={updateSavings}
+        onUpdateGoal={updateSavingsGoal}
+      />
+
       {/* Add more sections here for Recent Transactions, Investments, etc. */}
     </div>
   );

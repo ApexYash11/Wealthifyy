@@ -40,13 +40,18 @@ from schema import (
     PortfolioSnapshotResponse,
     PortfolioOverviewResponse
 )
-from ml_model import predict_expense, predict_savings
+from ml_model import predict_expense, predict_savings, get_realistic_predictions
 
 # Load environment variables
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours instead of 30 minutes
+
+# Default values from environment
+DEFAULT_SAVINGS_GOAL = float(os.getenv("DEFAULT_SAVINGS_GOAL", "10000.0"))
+DEFAULT_SAVINGS_RATE = float(os.getenv("DEFAULT_SAVINGS_RATE", "0.2"))
+EMERGENCY_FUND_MONTHS = int(os.getenv("EMERGENCY_FUND_MONTHS", "3"))
 
 # App and security setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -174,7 +179,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
         "user": {
             "id": str(new_user.id),
             "email": new_user.email,
-            "name": new_user.username,
+            "name": new_user.username,  # Send username as name for display
             "created_at": new_user.created_at.isoformat() if new_user.created_at is not None else None
         }
     }
@@ -202,7 +207,7 @@ async def login(
         "user": {
             "id": str(db_user.id),
             "email": db_user.email,
-            "name": db_user.username,
+            "name": db_user.username,  # Send username as name for display
             "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None
         }
     }
@@ -259,7 +264,15 @@ async def predict_expense_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Try ML model first
     prediction = predict_expense(input.user_id, input.month, db)
+    
+    # If ML model fails or returns error, use realistic predictions
+    if isinstance(prediction, dict) and "error" in prediction:
+        # Use realistic predictions as fallback
+        realistic_expenses, _ = get_realistic_predictions(input.income)
+        prediction = realistic_expenses
+    
     return PredictionResponse(prediction=prediction, month=input.month)
 
 # ✅ Savings prediction endpoint
@@ -269,7 +282,15 @@ async def predict_savings_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Try ML model first
     prediction = predict_savings(input.user_id, input.month, input.income, db)
+    
+    # If ML model fails or returns error, use realistic predictions
+    if isinstance(prediction, dict) and "error" in prediction:
+        # Use realistic predictions as fallback
+        _, realistic_savings = get_realistic_predictions(input.income)
+        prediction = realistic_savings
+    
     return PredictionResponse(prediction=prediction, month=input.month)
 
 # ✅ Add transaction
@@ -304,6 +325,87 @@ async def get_transactions(
     transactions = query.all()
     return transactions
 
+# ✅ Update user savings goal
+@app.put("/users/{user_id}/savings-goal")
+async def update_savings_goal(
+    user_id: int,
+    savings_goal: float = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update user's savings goal."""
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this user's savings goal")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if savings_goal < 0:
+        raise HTTPException(status_code=400, detail="Savings goal cannot be negative")
+    
+    user.savings_goal = savings_goal
+    db.commit()
+    db.refresh(user)
+    
+    return {"message": "Savings goal updated successfully", "savings_goal": user.savings_goal}
+
+# ✅ Get user savings goal
+@app.get("/users/{user_id}/savings-goal")
+async def get_savings_goal(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get user's current savings goal."""
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user's savings goal")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"savings_goal": user.savings_goal or 0.0}
+
+# ✅ Calculate smart savings goal based on income
+@app.post("/users/{user_id}/calculate-savings-goal")
+async def calculate_savings_goal(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Calculate a smart savings goal based on user's income and expenses."""
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to calculate savings goal for this user")
+    
+    # Get user's monthly income
+    current_month = datetime.now().strftime("%Y-%m")
+    monthly_income = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == "income",
+        Transaction.date.like(f"{current_month}%")
+    ).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
+    
+    # Get user's monthly expenses
+    monthly_expenses = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == "expense",
+        Transaction.date.like(f"{current_month}%")
+    ).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
+    
+    # Calculate recommended savings goal using environment variables
+    recommended_savings = max(
+        monthly_income * DEFAULT_SAVINGS_RATE,  # Use configurable savings rate
+        monthly_expenses * EMERGENCY_FUND_MONTHS   # Use configurable emergency fund months
+    )
+    
+    return {
+        "recommended_savings_goal": round(recommended_savings, 2),
+        "monthly_income": monthly_income,
+        "monthly_expenses": monthly_expenses,
+        "calculation_basis": f"{DEFAULT_SAVINGS_RATE * 100}% of income or {EMERGENCY_FUND_MONTHS} months of expenses, whichever is higher"
+    }
+
 # ✅ Get dashboard data
 @app.get("/dashboard/{user_id}", response_model=DashboardData)
 async def get_dashboard_data(
@@ -336,7 +438,10 @@ async def get_dashboard_data(
         Transaction.date.like(f"{current_month}%")
     ).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
     
-    # Calculate total balance (all income - all expenses)
+    # Calculate total balance as monthly income minus monthly expenses
+    total_balance = monthly_income - monthly_expenses
+
+    # Calculate all-time totals for savings calculation
     total_income = db.query(Transaction).filter(
         Transaction.user_id == user_id,
         Transaction.type == "income"
@@ -347,9 +452,10 @@ async def get_dashboard_data(
         Transaction.type == "expense"
     ).with_entities(func.sum(Transaction.amount)).scalar() or 0.0
     
-    total_balance = total_income - total_expenses
+    # Calculate all-time balance for savings
+    all_time_balance = total_income - total_expenses
 
-    # Calculate last month's income and expenses
+    # Calculate last month's income and expenses for comparison
     last_month_income = db.query(Transaction).filter(
         Transaction.user_id == user_id,
         Transaction.type == "income",
@@ -366,9 +472,19 @@ async def get_dashboard_data(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    # Use user's savings_goal from DB
-    savings_goal = user.savings_goal if user.savings_goal is not None else 10000.0
-    current_savings = max(0, total_balance * 0.2)  # 20% of balance as savings
+    
+    # Use user's savings_goal from DB, or calculate a smart default
+    savings_goal = user.savings_goal
+    if savings_goal is None or savings_goal == 0:
+        # Calculate smart default using environment variables
+        smart_savings = max(
+            monthly_income * DEFAULT_SAVINGS_RATE,  # Use configurable savings rate
+            monthly_expenses * EMERGENCY_FUND_MONTHS   # Use configurable emergency fund months
+        )
+        savings_goal = smart_savings
+
+    # Use user-editable current_savings
+    current_savings = user.current_savings if user.current_savings is not None else 0.0
     
     # Calculate spending categories
     category_expenses = db.query(
@@ -408,35 +524,26 @@ async def get_dashboard_data(
         spending_categories=spending_categories
     )
 
-@app.put("/users/{user_id}/savings-goal")
-async def update_savings_goal(
-    user_id: int,
-    new_goal: float = Body(..., embed=True),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    print(f"Received request to update savings_goal for user_id={user_id} to {new_goal}")
-    user = db.query(User).filter(User.id == user_id).first()
-    print("Fetched user:", user)
-    if not user:
-        print("User not found!")
-        raise HTTPException(status_code=404, detail="User not found")
-    user.savings_goal = new_goal  # type: ignore
-    db.commit()
-    db.refresh(user)
-    print("Updated savings_goal:", user.savings_goal)
-    return {"message": "Savings goal updated", "savings_goal": user.savings_goal}
-
 @app.post("/feedback")
 async def submit_feedback(
     message: str = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    feedback = Feedback(user_id=current_user.id, message=message)
-    db.add(feedback)
-    db.commit()
-    return {"message": "Feedback submitted"}
+    print(f"🔍 DEBUG: Feedback endpoint called")
+    print(f"🔍 DEBUG: User ID: {current_user.id}")
+    print(f"🔍 DEBUG: Message: {message}")
+    
+    try:
+        feedback = Feedback(user_id=current_user.id, message=message)
+        db.add(feedback)
+        db.commit()
+        print(f"✅ DEBUG: Feedback saved successfully with ID: {feedback.id}")
+        return {"message": "Feedback submitted"}
+    except Exception as e:
+        print(f"❌ DEBUG: Error saving feedback: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save feedback: {str(e)}")
 
 @app.get("/feedback")
 async def get_feedback(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -591,6 +698,23 @@ def delete_asset(
     db.delete(db_asset)
     db.commit()
     return {"message": "Asset deleted"}
+
+@app.put("/users/{user_id}/current-savings")
+async def update_current_savings(
+    user_id: int,
+    current_savings: float = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.current_savings = current_savings
+    db.commit()
+    db.refresh(user)
+    return {"message": "Current savings updated", "current_savings": user.current_savings}
 
 # ✅ Local dev server (optional)
 if __name__ == "__main__":

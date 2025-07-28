@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authAPI, LoginRequest, RegisterRequest } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 interface User {
   id: string;
@@ -32,20 +33,38 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  // Check if token is expired
+  const isTokenExpired = (token: string) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      return Date.now() >= exp;
+    } catch {
+      return true;
+    }
+  };
 
   useEffect(() => {
     // Check if user is logged in on app start
     const token = localStorage.getItem('jwt');
     if (token) {
-      // You might want to validate the token with your backend here
-      // For now, we'll just check if it exists
+      // Check if token is expired
+      if (isTokenExpired(token)) {
+        console.log('Token expired, logging out...');
+        logout();
+        router.push('/login');
+        return;
+      }
+      
       const userData = localStorage.getItem('user');
       if (userData && userData !== 'undefined') {
         setUser(JSON.parse(userData));
       }
     }
     setLoading(false);
-  }, []);
+  }, [router]);
 
   const login = async (data: LoginRequest) => {
     try {

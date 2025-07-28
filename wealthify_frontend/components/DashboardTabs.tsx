@@ -2,79 +2,133 @@
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import ExpenseBreakdown from './ExpenseBreakdown';
-
-const mockTransactions = [
-  { date: '2025-06-01', description: 'Grocery Shopping', amount: -1200, category: 'Food' },
-  { date: '2025-06-02', description: 'Salary', amount: 5200, category: 'Income' },
-  { date: '2025-06-03', description: 'Electricity Bill', amount: -350, category: 'Utilities' },
-  { date: '2025-06-04', description: 'Movie Night', amount: -300, category: 'Entertainment' },
-];
-
-const mockInvestments = [
-  { date: '2025-05-15', type: 'Mutual Fund', amount: 2000, status: 'Active' },
-  { date: '2025-04-10', type: 'Stocks', amount: 1500, status: 'Active' },
-  { date: '2025-03-20', type: 'FD', amount: 5000, status: 'Matured' },
-];
+import { useFinancialData } from '@/hooks/use-financial-data';
 
 export default function DashboardTabs() {
+  const { data, loading, error } = useFinancialData();
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
+            <p className="text-gray-500">Loading dashboard data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="text-red-500 mb-2">⚠️</div>
+            <p className="text-gray-500">Failed to load dashboard data</p>
+            <p className="text-sm text-gray-400">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Transform recent transactions for display
+  const recentTransactions = data.recentTransactions.map(tx => ({
+    date: tx.date,
+    description: tx.description,
+    amount: tx.type === 'income' ? tx.amount : -tx.amount,
+    category: tx.category,
+  }));
+
+  // Mock investments data (since we don't have real investment data yet)
+  // This should be replaced with real investment data when available
+  const investments = [
+    { date: '2025-05-15', type: 'Mutual Fund', amount: 2000, status: 'Active' },
+    { date: '2025-04-10', type: 'Stocks', amount: 1500, status: 'Active' },
+    { date: '2025-03-20', type: 'FD', amount: 5000, status: 'Matured' },
+  ];
+
   return (
-    <Tabs defaultValue="breakdown" className="w-full mb-8">
+    <Tabs defaultValue="breakdown" className="w-full">
       <TabsList className="mb-4 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 flex gap-2">
-        <TabsTrigger value="breakdown" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">Spending Breakdown</TabsTrigger>
-        <TabsTrigger value="transactions" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">Recent Transactions</TabsTrigger>
-        <TabsTrigger value="investments" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">Investments</TabsTrigger>
+        <TabsTrigger value="breakdown" className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">
+          Spending Breakdown
+        </TabsTrigger>
+        <TabsTrigger value="transactions" className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">
+          Recent Transactions
+        </TabsTrigger>
+        <TabsTrigger value="investments" className="flex-1 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-900 data-[state=active]:to-purple-500 data-[state=active]:text-white rounded-md px-4 py-2 font-semibold">
+          Investments
+        </TabsTrigger>
       </TabsList>
+
       <TabsContent value="breakdown">
         <ExpenseBreakdown />
       </TabsContent>
+
       <TabsContent value="transactions">
-        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm p-4">
-          <div className="font-bold text-lg mb-2">Recent Transactions</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500">
-                <th className="text-left py-2">Date</th>
-                <th className="text-left py-2">Description</th>
-                <th className="text-left py-2">Category</th>
-                <th className="text-right py-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockTransactions.map((tx, i) => (
-                <tr key={i} className="border-b last:border-b-0">
-                  <td className="py-2">{tx.date}</td>
-                  <td className="py-2">{tx.description}</td>
-                  <td className="py-2">{tx.category}</td>
-                  <td className={`py-2 text-right font-semibold ${tx.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>{tx.amount < 0 ? '-' : ''}₹{Math.abs(tx.amount).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
+            {recentTransactions.length > 0 ? (
+              <div className="space-y-3">
+                {recentTransactions.map((tx, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-2 h-2 rounded-full ${tx.amount > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{tx.description}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{tx.category} • {tx.date}</p>
+                      </div>
+                    </div>
+                    <span className={`font-semibold ${tx.amount > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {tx.amount > 0 ? '+' : ''}₹{Math.abs(tx.amount).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>No recent transactions</p>
+                <p className="text-sm">Add some transactions to see them here</p>
+              </div>
+            )}
+          </div>
         </div>
       </TabsContent>
+
       <TabsContent value="investments">
-        <div className="bg-white dark:bg-gray-950 rounded-xl shadow-sm p-4">
-          <div className="font-bold text-lg mb-2">Investments</div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-500">
-                <th className="text-left py-2">Date</th>
-                <th className="text-left py-2">Type</th>
-                <th className="text-left py-2">Status</th>
-                <th className="text-right py-2">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockInvestments.map((inv, i) => (
-                <tr key={i} className="border-b last:border-b-0">
-                  <td className="py-2">{inv.date}</td>
-                  <td className="py-2">{inv.type}</td>
-                  <td className="py-2">{inv.status}</td>
-                  <td className="py-2 text-right font-semibold text-blue-700">₹{inv.amount.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Investment Portfolio</h3>
+            {investments.length > 0 ? (
+              <div className="space-y-3">
+                {investments.map((inv, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{inv.type}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{inv.date} • {inv.status}</p>
+                      </div>
+                    </div>
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                      ₹{inv.amount.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <p>No investments yet</p>
+                <p className="text-sm">Start investing to see your portfolio here</p>
+              </div>
+            )}
+          </div>
         </div>
       </TabsContent>
     </Tabs>

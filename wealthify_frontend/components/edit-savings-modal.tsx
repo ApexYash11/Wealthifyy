@@ -1,28 +1,21 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { savingsAPI } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 interface EditSavingsModalProps {
-  isOpen: boolean
-  onClose: () => void
-  currentSavings: number
-  savingsGoal: number
-  onUpdateSavings: (amount: number) => void
-  onUpdateGoal: (amount: number) => void
+  isOpen: boolean;
+  onClose: () => void;
+  currentSavings: number;
+  savingsGoal: number;
+  onUpdateSavings: (savings: number) => void;
+  onUpdateGoal: (goal: number) => void;
 }
 
 export default function EditSavingsModal({
@@ -33,83 +26,96 @@ export default function EditSavingsModal({
   onUpdateSavings,
   onUpdateGoal,
 }: EditSavingsModalProps) {
-  const { toast } = useToast()
-  const [savings, setSavings] = useState(currentSavings.toString())
-  const [goal, setGoal] = useState(savingsGoal.toString())
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [savings, setSavings] = useState(currentSavings.toString());
+  const [goal, setGoal] = useState(savingsGoal.toString());
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const savingsAmount = Number.parseFloat(savings)
-    const goalAmount = Number.parseFloat(goal)
-
+    e.preventDefault();
+    const savingsAmount = Number.parseFloat(savings);
+    const goalAmount = Number.parseFloat(goal);
     if (isNaN(savingsAmount) || isNaN(goalAmount)) {
       toast({
-        title: "Invalid values",
+        title: "Invalid value",
         description: "Please enter valid numbers",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
-
-    onUpdateSavings(savingsAmount)
-    await Promise.resolve(onUpdateGoal(goalAmount))
-    onClose()
-
-    toast({
-      title: "Savings updated",
-      description: `Your savings information has been updated.`,
-    })
-  }
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to update savings",
+        variant: "destructive",
+      });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Update current savings
+      await savingsAPI.updateCurrentSavings(parseInt(user.id), savingsAmount);
+      onUpdateSavings(savingsAmount);
+      // Update savings goal
+      await savingsAPI.updateSavingsGoal(parseInt(user.id), goalAmount);
+      onUpdateGoal(goalAmount);
+      toast({
+        title: "Savings updated",
+        description: `Your savings and goal have been updated!`,
+      });
+      onClose();
+      if (typeof window !== 'undefined') window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: "Failed to update savings",
+        description: error.response?.data?.detail || "Please try again later",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            Update Savings
-          </DialogTitle>
-          <DialogDescription>Update your current savings and savings goal.</DialogDescription>
+          <DialogTitle>Edit Savings</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="space-y-2">
-            <Label htmlFor="current-savings">Current Savings (₹)</Label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="savings">Current Savings</Label>
             <Input
-              id="current-savings"
+              id="savings"
               type="number"
               value={savings}
               onChange={(e) => setSavings(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              required
+              placeholder="Enter current savings"
+              disabled={loading}
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="savings-goal">Savings Goal (₹)</Label>
+          <div>
+            <Label htmlFor="goal">Savings Goal</Label>
             <Input
-              id="savings-goal"
+              id="goal"
               type="number"
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              required
+              placeholder="Enter savings goal"
+              disabled={loading}
             />
           </div>
-
-          <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-gradient-to-r from-primary to-purple-600">
-              Update
+            <Button type="submit" disabled={loading}>
+              {loading ? "Updating..." : "Update"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

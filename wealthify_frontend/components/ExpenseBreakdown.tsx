@@ -4,6 +4,7 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTheme } from 'next-themes';
+import { useFinancialData } from '@/hooks/use-financial-data';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 
@@ -53,32 +54,87 @@ const darkColors = [
   '#a3e635', // Other
 ];
 
-// Mock data for demonstration
-const mockData = {
-  housing: 1200,
-  food: 600,
-  transportation: 400,
-  utilities: 350,
-  entertainment: 300,
-  shopping: 250,
-  healthcare: 1000,
-  education: 0,
-  insurance: 200,
-  savings: 500,
-  debt: 300,
-  other: 100,
-};
-
-const total = Object.values(mockData).reduce((sum, v) => sum + v, 0);
-
 export default function ExpenseBreakdown() {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const colors = isDark ? darkColors : lightColors;
+  
+  // Use real financial data instead of mock data
+  const { data, loading, error } = useFinancialData();
+
+  // Transform spending categories to match chart format
+  const expenseData = categories.map(cat => {
+    const categoryData = data.spendingCategories.find(sc => 
+      sc.category.toLowerCase() === cat.key || 
+      sc.category.toLowerCase() === cat.label.toLowerCase()
+    );
+    return categoryData ? categoryData.amount : 0;
+  });
+
+  const total = expenseData.reduce((sum, v) => sum + v, 0);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Expense Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
+              <p className="text-gray-500">Loading expense data...</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Expense Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="text-red-500 mb-2">⚠️</div>
+              <p className="text-gray-500">Failed to load expense data</p>
+              <p className="text-sm text-gray-400">{error}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show empty state if no data
+  if (total === 0) {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Expense Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="text-gray-400 mb-2">📊</div>
+              <p className="text-gray-500">No expense data available</p>
+              <p className="text-sm text-gray-400">Add some transactions to see your breakdown</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const series = [
     {
-      data: categories.map(cat => mockData[cat.key]),
+      data: expenseData,
     },
   ];
 
@@ -128,48 +184,46 @@ export default function ExpenseBreakdown() {
       },
     },
     xaxis: {
-      categories: categories.map(cat => `${cat.icon} ${cat.label}`),
+      categories: categories.map(cat => cat.label),
       labels: {
         style: {
-          fontSize: '16px',
-          fontWeight: 600,
           colors: isDark ? '#fff' : '#222',
+          fontSize: '12px',
         },
       },
-      axisBorder: { show: false },
-      axisTicks: { show: false },
     },
     yaxis: {
       labels: {
         style: {
-          fontSize: '16px',
-          fontWeight: 600,
           colors: isDark ? '#fff' : '#222',
+          fontSize: '12px',
         },
       },
     },
-    grid: {
-      borderColor: isDark ? '#22223b' : '#f3f4f6',
-      row: { colors: [isDark ? '#181825' : '#fff', isDark ? '#23233a' : '#f9fafb'], opacity: 0.5 },
+    legend: {
+      show: false,
     },
     tooltip: {
       y: {
-        formatter: (val: number) => `₹${val.toLocaleString()}`,
+        formatter: function (val: number) {
+          return `₹${val.toLocaleString()}`;
+        },
       },
-      theme: isDark ? 'dark' : 'light',
     },
-    legend: { show: false },
   };
 
   return (
-    <Card className="mb-8">
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-xl font-bold">Monthly Spending Breakdown</CardTitle>
+        <CardTitle>Expense Breakdown</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="w-full">
-          <ReactApexChart options={options} series={series} type="bar" height={420} />
-        </div>
+        <ReactApexChart
+          options={options}
+          series={series}
+          type="bar"
+          height={350}
+        />
       </CardContent>
     </Card>
   );

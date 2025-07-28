@@ -1,42 +1,49 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use environment variables with fallbacks
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' ? window.location.origin.replace(':3000', ':8000') : 'http://localhost:8000');
 
-const api = axios.create({
+// Create axios instance with better error handling
+const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add JWT token
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('jwt');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('API Request with token:', token.substring(0, 20) + '...');
-    } else {
-      console.log('No JWT token found in localStorage');
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
-  }
-  return config;
-});
-
-// Response interceptor to handle errors
-api.interceptors.response.use(
-  (response) => response,
+    return config;
+  },
   (error) => {
-    console.error('API Error:', error.response?.status, error.response?.data);
-    if (error.response?.status === 401) {
-      console.log('401 Unauthorized - clearing token and redirecting to login');
-      localStorage.removeItem('jwt');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
     return Promise.reject(error);
   }
 );
+
+// Response interceptor for better error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      url: error.config?.url,
+    });
+    return Promise.reject(error);
+  }
+);
+
+export default apiClient;
 
 export interface LoginRequest {
   username: string;
@@ -90,31 +97,51 @@ export const authAPI = {
     const formData = new FormData();
     formData.append('username', data.username);
     formData.append('password', data.password);
-    return api.post('/login', formData, {
+    return apiClient.post('/login', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  register: (data: RegisterRequest) => api.post('/register', data),
+  register: (data: RegisterRequest) => apiClient.post('/register', data),
 };
 
 export const expenseAPI = {
   getExpenses: (userId: string, month?: string) => 
-    api.get(`/expenses/${userId}${month ? `?month=${month}` : ''}`),
-  addExpense: (data: ExpenseRequest) => api.post('/expenses', data),
-  predictExpense: (data: PredictionRequest) => api.post('/predict-expense', data),
-  predictSavings: (data: PredictionRequest) => api.post('/predict/savings', data),
+    apiClient.get(`/expenses/${userId}${month ? `?month=${month}` : ''}`),
+  addExpense: (data: ExpenseRequest) => apiClient.post('/expenses', data),
+  predictExpense: (data: PredictionRequest) => apiClient.post('/predict-expense', data),
+  predictSavings: (data: PredictionRequest) => apiClient.post('/predict/savings', data),
 };
 
 export const transactionAPI = {
   getTransactions: (userId: number, limit?: number) => 
-    api.get(`/transactions/${userId}${limit ? `?limit=${limit}` : ''}`),
-  addTransaction: (data: TransactionRequest) => api.post('/transactions', data),
+    apiClient.get(`/transactions/${userId}${limit ? `?limit=${limit}` : ''}`),
+  addTransaction: (data: TransactionRequest) => apiClient.post('/transactions', data),
 };
 
+// Savings goal management
+export const savingsAPI = {
+  // Get user's current savings goal
+  getSavingsGoal: (userId: number) => 
+    apiClient.get(`/users/${userId}/savings-goal`),
+  
+  // Update user's savings goal
+  updateSavingsGoal: (userId: number, savingsGoal: number) => 
+    apiClient.put(`/users/${userId}/savings-goal`, { savings_goal: savingsGoal }),
+  
+  // Calculate smart savings goal based on income/expenses
+  calculateSavingsGoal: (userId: number) => 
+    apiClient.post(`/users/${userId}/calculate-savings-goal`),
+
+  // Update user's current savings
+  updateCurrentSavings: (userId: number, currentSavings: number) =>
+    apiClient.put(`/users/${userId}/current-savings`, { current_savings: currentSavings }),
+};
+
+// Dashboard API
 export const dashboardAPI = {
-  getDashboardData: (userId: number) => api.get(`/dashboard/${userId}`),
+  getDashboardData: (userId: number) => apiClient.get(`/dashboard/${userId}`),
   updateSavingsGoal: (userId: number, newGoal: number) =>
-    api.put(`/users/${userId}/savings-goal`, { new_goal: newGoal }),
+    apiClient.put(`/users/${userId}/savings-goal`, { savings_goal: newGoal }),
 };
 
 export const getAssets = async (token: string) => {
@@ -163,6 +190,4 @@ export const deleteAsset = async (assetId: number, token: string) => {
     headers: { Authorization: `Bearer ${token}` }
   });
   return res.data;
-};
-
-export default api; 
+}; 

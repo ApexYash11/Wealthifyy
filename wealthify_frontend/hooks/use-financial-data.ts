@@ -20,6 +20,8 @@ export interface FinancialData {
   savingsGoal: number
   currentSavings: number
   lastMonthBalance: number
+  lastMonthIncome: number
+  lastMonthExpenses: number
   recentTransactions: Transaction[]
   spendingCategories: {
     category: string
@@ -84,6 +86,8 @@ export function useFinancialData() {
     savingsGoal: 10000,
     currentSavings: 0,
     lastMonthBalance: 0,
+    lastMonthIncome: 0,
+    lastMonthExpenses: 0,
     recentTransactions: [],
     spendingCategories: [],
   })
@@ -110,6 +114,8 @@ export function useFinancialData() {
         savingsGoal: dashboardData.summary.savings_goal,
         currentSavings: dashboardData.summary.current_savings,
         lastMonthBalance: dashboardData.summary.last_month_balance,
+        lastMonthIncome: dashboardData.summary.last_month_income,
+        lastMonthExpenses: dashboardData.summary.last_month_expenses,
         recentTransactions: dashboardData.recent_transactions.map(tx => ({
           id: tx.id,
           type: tx.type as "income" | "expense",

@@ -50,9 +50,10 @@ export default function InsightsPage() {
         setError(null);
         const response = await dashboardAPI.getDashboardData(parseInt(user.id));
         const data = response.data;
-        
         setSummary(data.summary);
-        setSpendingCategories(data.spending_categories);
+        // Sort categories by amount descending for correct Top Category
+        const sortedCategories = [...data.spending_categories].sort((a, b) => b.amount - a.amount);
+        setSpendingCategories(sortedCategories);
       } catch (err) {
         console.error("Error loading insights data:", err);
         setError("Failed to load insights data");
@@ -93,21 +94,27 @@ export default function InsightsPage() {
     );
   }
 
+  // Use sorted spendingCategories for Top Category
+  const topCategory = spendingCategories.length > 0 ? spendingCategories[0] : null;
+  const savingsRate = summary.monthly_income > 0 ? Math.round((summary.current_savings / summary.monthly_income) * 100) : 0;
+
   const summaryCards = [
     { 
       label: "Total Spend", 
-      value: `₹${summary.monthly_expenses.toLocaleString()}`, 
+      value: `₹${summary.monthly_expenses.toLocaleString()}`,
       icon: <BarChart2 className="w-7 h-7 text-purple-400" /> 
     },
     { 
       label: "Top Category", 
-      value: spendingCategories.length > 0 ? spendingCategories[0].category : "N/A", 
-      icon: <TrendingUp className="w-7 h-7 text-pink-400" /> 
+      value: topCategory ? `${topCategory.category}` : "N/A", 
+      icon: <TrendingUp className="w-7 h-7 text-pink-400" />, 
+      description: topCategory ? `₹${topCategory.amount.toLocaleString("en-IN")} (${topCategory.percentage}%)` : "No data"
     },
     { 
       label: "Savings Rate", 
-      value: summary.monthly_income > 0 ? `${Math.round((summary.current_savings / summary.monthly_income) * 100)}%` : "0%", 
-      icon: <CheckCircle className="w-7 h-7 text-green-400" /> 
+      value: `${savingsRate}%`, 
+      icon: <CheckCircle className="w-7 h-7 text-green-400" />,
+      description: summary.monthly_income > 0 ? `₹${summary.current_savings.toLocaleString("en-IN")}` : "No income data"
     },
   ];
 
@@ -116,7 +123,8 @@ export default function InsightsPage() {
     { label: "Savings Progress", type: summary.current_savings > 0 ? "Growing" : "Start Saving", icon: <Repeat className="w-5 h-5 text-green-400" /> },
   ];
 
-  const biggestCategory = spendingCategories.length > 0 ? spendingCategories[0] : null;
+  // Use sorted topCategory in suggestions
+  const biggestCategory = topCategory;
   const lastMonthExpenses = summary.last_month_expenses ?? 0;
   const lastMonthIncome = summary.last_month_income ?? 0;
 
@@ -170,6 +178,9 @@ export default function InsightsPage() {
             </CardHeader>
             <CardContent className="px-4 pb-4 pt-0">
               <div className="text-4xl font-extrabold">{item.value}</div>
+              {item.description && (
+                <div className="text-gray-400 text-base mt-2">{item.description}</div>
+              )}
             </CardContent>
           </Card>
         ))}
