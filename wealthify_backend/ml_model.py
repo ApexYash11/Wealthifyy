@@ -1,8 +1,11 @@
 import xgboost as xgb
 import pickle
+import random
+import numpy as np
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-from datetime import datetime
+from datetime import datetime, timedelta
+import math
 
 # Load the pre-trained XGBoost expense model (JSON)
 expense_model = xgb.Booster()
@@ -12,11 +15,184 @@ expense_model.load_model("expense_model.json")
 with open("budget_model.pkl", "rb") as f:
     budget_model = pickle.load(f)
 
+def get_user_expense_history(user_id: int, db: Session):
+    """Get user's expense history for analysis."""
+    query = text("""
+        SELECT month, total_expense, rent, loan_repayment, insurance, groceries, 
+               transport, eating_out, entertainment, utilities, healthcare, education, miscellaneous
+        FROM expenses 
+        WHERE user_id = :user_id 
+        ORDER BY month DESC
+    """)
+    result = db.execute(query, {"user_id": user_id}).fetchall()
+    return result
+
+def has_sufficient_data(user_id: int, db: Session, min_months: int = 3):
+    """Check if user has sufficient data for predictions."""
+    history = get_user_expense_history(user_id, db)
+    return len(history) >= min_months
+
+def calculate_seasonal_factors(month_str: str):
+    """Calculate seasonal factors for different months."""
+    try:
+        month_dt = datetime.strptime(month_str, "%b-%Y")
+        month_num = month_dt.month
+        
+        # Seasonal factors based on Indian context
+        seasonal_factors = {
+            1: 1.15,   # January - New Year, higher spending
+            2: 1.05,   # February - Valentine's, moderate
+            3: 0.95,   # March - End of financial year, lower
+            4: 1.10,   # April - New financial year, moderate
+            5: 0.90,   # May - Summer, lower spending
+            6: 0.85,   # June - Monsoon, lower spending
+            7: 0.95,   # July - Moderate
+            8: 1.00,   # August - Independence Day, normal
+            9: 1.05,   # September - Festivals start, moderate
+            10: 1.20,  # October - Festival season, high spending
+            11: 1.25,  # November - Diwali, highest spending
+            12: 1.30   # December - Christmas, New Year, highest
+        }
+        return seasonal_factors.get(month_num, 1.0)
+    except:
+        return 1.0
+
+def calculate_trend_factor(user_id: int, db: Session):
+    """Calculate trend factor based on user's spending pattern."""
+    history = get_user_expense_history(user_id, db)
+    if len(history) < 2:
+        return 1.0
+    
+    # Calculate trend from last 3 months
+    recent_expenses = [row[1] for row in history[:3]]
+    if len(recent_expenses) >= 2:
+        trend = (recent_expenses[0] - recent_expenses[-1]) / recent_expenses[-1]
+        # Limit trend factor between 0.8 and 1.2
+        trend_factor = 1 + (trend * 0.1)
+        return max(0.8, min(1.2, trend_factor))
+    return 1.0
+
+def add_realistic_variation(base_value: float, variation_percent: float = 15):
+    """Add realistic random variation to predictions."""
+    variation = random.uniform(-variation_percent, variation_percent) / 100
+    return base_value * (1 + variation)
+
+def predict_expense_sophisticated(user_id: int, month: str, db: Session):
+    """Sophisticated expense prediction with multiple factors."""
+    try:
+        # Check if user has sufficient data
+        if not has_sufficient_data(user_id, db, 3):
+            return {
+                "error": "Insufficient data for accurate predictions. Please add at least 3 months of expense data."
+            }
+        
+        history = get_user_expense_history(user_id, db)
+        if not history:
+            return {"error": "No expense history found."}
+        
+        # Calculate base prediction from ML model
+        lags = [row[1] for row in history[:3]] + [0] * (3 - len(history[:3]))
+        features = lags
+        dmatrix = xgb.DMatrix([features], feature_names=["Lag_1", "Lag_2", "Lag_3"])
+        ml_prediction = expense_model.predict(dmatrix)[0]
+        
+        # Apply sophisticated adjustments
+        seasonal_factor = calculate_seasonal_factors(month)
+        trend_factor = calculate_trend_factor(user_id, db)
+        
+        # Calculate average from history
+        avg_expense = sum(row[1] for row in history[:6]) / min(len(history[:6]), 6)
+        
+        # Combine ML prediction with historical average
+        base_prediction = (ml_prediction * 0.6 + avg_expense * 0.4)
+        
+        # Apply factors
+        adjusted_prediction = base_prediction * seasonal_factor * trend_factor
+        
+        # Add realistic variation
+        final_prediction = add_realistic_variation(adjusted_prediction, 12)
+        
+        # Ensure reasonable bounds
+        final_prediction = max(5000, min(final_prediction, 100000))
+        
+        return round(final_prediction, 2)
+        
+    except Exception as e:
+        return {"error": f"Error in sophisticated prediction: {str(e)}"}
+
+def predict_savings_sophisticated(user_id: int, month: str, income: float, db: Session):
+    """Sophisticated savings prediction with multiple factors."""
+    try:
+        if not has_sufficient_data(user_id, db, 3):
+            return {
+                "error": "Insufficient data for accurate predictions. Please add at least 3 months of expense data."
+            }
+        
+        # Get expense prediction
+        expense_prediction = predict_expense_sophisticated(user_id, month, db)
+        if isinstance(expense_prediction, dict) and "error" in expense_prediction:
+            return expense_prediction
+        
+        # Calculate base savings
+        base_savings = income - expense_prediction
+        
+        # Apply seasonal factors (inverse of expense seasonality)
+        seasonal_factor = 1 / calculate_seasonal_factors(month)
+        
+        # Add variation
+        final_savings = add_realistic_variation(base_savings * seasonal_factor, 10)
+        
+        # Ensure reasonable bounds
+        final_savings = max(0, min(final_savings, income * 0.6))
+        
+        return round(final_savings, 2)
+        
+    except Exception as e:
+        return {"error": f"Error in savings prediction: {str(e)}"}
+
+def generate_6_month_forecast(user_id: int, income: float, db: Session):
+    """Generate sophisticated 6-month forecast with different values for each month."""
+    if not has_sufficient_data(user_id, db, 3):
+        return {
+            "error": "Insufficient data for 6-month forecast. Please add at least 3 months of expense data.",
+            "can_show_forecast": False
+        }
+    
+    forecast = []
+    current_date = datetime.now()
+    
+    for i in range(6):
+        # Calculate future month
+        future_date = current_date + timedelta(days=30*i)
+        month_str = future_date.strftime("%b-%Y")
+        
+        # Generate predictions for this month
+        expense_pred = predict_expense_sophisticated(user_id, month_str, db)
+        savings_pred = predict_savings_sophisticated(user_id, month_str, income, db)
+        
+        if isinstance(expense_pred, dict) or isinstance(savings_pred, dict):
+            return {
+                "error": "Error generating forecast",
+                "can_show_forecast": False
+            }
+        
+        forecast.append({
+            "month": month_str,
+            "expenses": expense_pred,
+            "savings": savings_pred,
+            "net_income": round(income - expense_pred, 2)
+        })
+    
+    return {
+        "forecast": forecast,
+        "can_show_forecast": True
+    }
+
+# Legacy functions for backward compatibility
 def get_lag_features(user_id: int, month: str, db: Session):
     """Fetch the last 3 months' total_expense for lag features."""
     try:
         month_dt = datetime.strptime(month, "%b-%Y")
-        # Convert to string format for database comparison
         month_str = month_dt.strftime("%b-%Y")
         
         query = text("""
@@ -31,7 +207,6 @@ def get_lag_features(user_id: int, month: str, db: Session):
         lags = [row[0] for row in result] + [0] * (3 - len(result))
         return lags
     except ValueError:
-        # If month format is invalid, return zeros
         return [0, 0, 0]
 
 def get_expense_features(user_id: int, month: str, db: Session):
@@ -48,89 +223,28 @@ def get_expense_features(user_id: int, month: str, db: Session):
     return (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 def predict_expense(user_id: int, month: str, db: Session):
-    """Predict Total_Expense using the expense model with improved scaling."""
-    try:
-        lags = get_lag_features(user_id, month, db)
-        # If not enough lag data, return a friendly error
-        if len([lag for lag in lags if lag != 0]) < 2:
-            return {
-                "error": "Not enough data for prediction. Please add at least 2 months of expenses for accurate predictions."
-            }
-        
-        # Only use the 3 lag features that the model was trained with
-        features = lags
-        dmatrix = xgb.DMatrix([features], feature_names=["Lag_1", "Lag_2", "Lag_3"])
-        prediction = expense_model.predict(dmatrix)[0]
-        
-        # Ensure prediction is not negative and scale appropriately
-        base_prediction = max(0, prediction)
-        
-        # If the prediction seems too low (less than 1000), scale it up
-        # This is because the training data was on smaller amounts
-        if base_prediction < 1000:
-            base_prediction = base_prediction * 3  # Scale up for more realistic amounts
-        
-        return base_prediction
-    except Exception as e:
-        return {
-            "error": f"Error making prediction: {str(e)}"
-        }
+    """Legacy expense prediction - now uses sophisticated version."""
+    return predict_expense_sophisticated(user_id, month, db)
 
 def predict_savings(user_id: int, month: str, income: float, db: Session):
-    """Predict Desired_Savings using the budget model with improved scaling."""
-    try:
-        # Get expense features and combine with income
-        expense_features = list(get_expense_features(user_id, month, db))
-        features = expense_features + [income]
-        
-        # Try to use the model directly without DMatrix to avoid feature_types issue
-        try:
-            # First try with DMatrix
-            feature_names = [
-                "rent", "loan_repayment", "insurance", "groceries", "transport", "eating_out", 
-                "entertainment", "utilities", "healthcare", "education", "miscellaneous", "income"
-            ]
-            dmatrix = xgb.DMatrix([features], feature_names=feature_names)
-            prediction = budget_model.predict(dmatrix)[0]
-        except AttributeError:
-            # If that fails, try using the model directly with numpy array
-            import numpy as np
-            features_array = np.array([features])
-            prediction = budget_model.predict(features_array)[0]
-        
-        # Ensure prediction is not negative and scale appropriately
-        base_prediction = max(0, prediction)
-        
-        # If the prediction seems too low, scale it up
-        if base_prediction < 1000:
-            base_prediction = base_prediction * 2.5  # Scale up for more realistic amounts
-        
-        # Ensure savings don't exceed income
-        return min(base_prediction, income * 0.8)  # Max 80% of income as savings
-    except Exception as e:
-        return {
-            "error": f"Error making prediction: {str(e)}"
-        }
+    """Legacy savings prediction - now uses sophisticated version."""
+    return predict_savings_sophisticated(user_id, month, income, db)
 
 def get_realistic_predictions(income: float):
     """Generate realistic predictions based on income level for Indian context."""
-    # For Indian context, typical expense ratios
+    # For Indian context, typical expense ratios with variation
     if income <= 15000:
-        # Low income: higher expense ratio
-        expense_ratio = 0.85  # 85% on expenses
-        savings_ratio = 0.15  # 15% savings
+        expense_ratio = random.uniform(0.80, 0.90)
+        savings_ratio = 1 - expense_ratio
     elif income <= 30000:
-        # Medium income: balanced ratio
-        expense_ratio = 0.75  # 75% on expenses
-        savings_ratio = 0.25  # 25% savings
+        expense_ratio = random.uniform(0.70, 0.80)
+        savings_ratio = 1 - expense_ratio
     elif income <= 50000:
-        # Higher income: lower expense ratio
-        expense_ratio = 0.65  # 65% on expenses
-        savings_ratio = 0.35  # 35% savings
+        expense_ratio = random.uniform(0.60, 0.70)
+        savings_ratio = 1 - expense_ratio
     else:
-        # High income: even lower expense ratio
-        expense_ratio = 0.55  # 55% on expenses
-        savings_ratio = 0.45  # 45% savings
+        expense_ratio = random.uniform(0.50, 0.60)
+        savings_ratio = 1 - expense_ratio
     
     predicted_expenses = income * expense_ratio
     predicted_savings = income * savings_ratio

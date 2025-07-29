@@ -110,6 +110,8 @@ export const expenseAPI = {
   addExpense: (data: ExpenseRequest) => apiClient.post('/expenses', data),
   predictExpense: (data: PredictionRequest) => apiClient.post('/predict-expense', data),
   predictSavings: (data: PredictionRequest) => apiClient.post('/predict/savings', data),
+  predict6MonthForecast: (data: { user_id: number; income: number }) => 
+    apiClient.post('/predict/6-month-forecast', data),
 };
 
 export const transactionAPI = {

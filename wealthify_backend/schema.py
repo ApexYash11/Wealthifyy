@@ -8,20 +8,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
-# Schema for OAuth user creation
-class OAuthUserCreate(BaseModel):
-    email: EmailStr
-    oauth_provider: str  # 'github' or 'google'
-    oauth_id: str
-    username: Optional[str] = None
-    avatar_url: Optional[str] = None
-
 # Schema for JWT token response
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-# Schema for login response with user info
+# Schema for login response
 class LoginResponse(BaseModel):
     token: str
     user: dict
