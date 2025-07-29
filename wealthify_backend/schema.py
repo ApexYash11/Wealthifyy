@@ -8,6 +8,14 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
+# Schema for OAuth user creation
+class OAuthUserCreate(BaseModel):
+    email: EmailStr
+    oauth_provider: str  # 'github' or 'google'
+    oauth_id: str
+    username: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 # Schema for JWT token response
 class Token(BaseModel):
     access_token: str
@@ -67,6 +75,7 @@ class TransactionCreate(BaseModel):
     amount: float
     category: str
     date: str
+    recurring: bool = False  # Add recurring field with default False
 
 class TransactionResponse(TransactionCreate):
     id: int

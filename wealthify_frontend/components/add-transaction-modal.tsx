@@ -28,6 +28,7 @@ export interface Transaction {
   date: string
   category: string
   icon: string
+  recurring?: boolean
 }
 
 interface AddTransactionModalProps {
@@ -60,6 +61,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const [recurring, setRecurring] = useState(false)
 
   const incomeCategories = ["Salary", "Freelance", "Investment", "Gift", "Other"]
   const expenseCategories = [
@@ -95,6 +97,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
       date,
       category,
       icon: categoryIcons[category] || "📋",
+      recurring,
     }
 
     onAddTransaction(newTransaction)
@@ -113,6 +116,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
     setAmount("")
     setCategory("")
     setDate(new Date().toISOString().split("T")[0])
+    setRecurring(false)
   }
 
   return (
@@ -191,6 +195,19 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
           <div className="space-y-2">
             <Label htmlFor="date">Date</Label>
             <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="recurring"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <Label htmlFor="recurring" className="text-sm font-medium">
+              Recurring Transaction
+            </Label>
           </div>
 
           <DialogFooter className="pt-4">

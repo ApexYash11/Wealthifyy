@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify(message), // Send message as direct string, not object
+      body: JSON.stringify({ message: message }), // Send message in proper format
     });
     
     console.log('🔍 DEBUG: Backend response status:', res.status);

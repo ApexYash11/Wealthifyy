@@ -57,7 +57,7 @@ export default function SettingsPage() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(feedback),
+        body: JSON.stringify({ message: feedback }),
       });
       
       if (res.ok) {

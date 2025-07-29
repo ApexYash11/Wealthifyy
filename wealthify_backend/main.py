@@ -1,11 +1,13 @@
 from fastapi import FastAPI, Depends, HTTPException, Form, Body, Path
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional, List
 import os
+import json
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
@@ -15,6 +17,10 @@ from pydantic import SecretStr
 from sqlalchemy import func
 import requests
 import yfinance as yf
+from authlib.integrations.starlette_client import OAuth
+from starlette.config import Config
+from starlette.requests import Request
+from starlette.middleware.sessions import SessionMiddleware
 
 
 
@@ -68,6 +74,41 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Add SessionMiddleware for OAuth
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+
+# OAuth Configuration
+config = Config('.env')
+oauth = OAuth(config)
+
+# GitHub OAuth
+oauth.register(
+    name='github',
+    client_id=os.getenv('GITHUB_CLIENT_ID'),
+    client_secret=os.getenv('GITHUB_CLIENT_SECRET'),
+    access_token_url='https://github.com/login/oauth/access_token',
+    access_token_params=None,
+    authorize_url='https://github.com/login/oauth/authorize',
+    authorize_params=None,
+    api_base_url='https://api.github.com/',
+    client_kwargs={'scope': 'user:email'},
+)
+
+# Google OAuth
+oauth.register(
+    name='google',
+    client_id=os.getenv('GOOGLE_CLIENT_ID'),
+    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+    access_token_url='https://oauth2.googleapis.com/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v2/',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
 )
 
 # email and token config
@@ -188,14 +229,21 @@ from fastapi import Form
 
 @app.post("/login", response_model=LoginResponse)
 async def login(
-    username: str = Form(...),  # 👈 not Pydantic model
+    username: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    db_user = db.query(User).filter(User.username == username).first()
-    if not db_user or not pwd_context.verify(password, db_user.password_hash):
+    username_clean = username.strip()
+    print(f"🔍 Login attempt - Username: '{username}' (cleaned: '{username_clean}'), Password length: {len(password)}")
+    db_user = db.query(User).filter(User.username.ilike(username_clean)).first()
+    if not db_user:
+        print(f"❌ No user found with username: '{username_clean}' (case-insensitive)")
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    print(f"✅ User found: ID={db_user.id}, Username='{db_user.username}', Email='{db_user.email}'")
+    if not pwd_context.verify(password, db_user.password_hash):
+        print(f"❌ Password verification failed")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    print(f"✅ Password verified successfully")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = jwt.encode(
         {"sub": str(db_user.id), "exp": datetime.utcnow() + access_token_expires},
@@ -211,6 +259,108 @@ async def login(
             "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None
         }
     }
+
+# OAuth endpoints
+@app.get("/auth/{provider}/login")
+async def oauth_login(provider: str, request: Request):
+    """Initiate OAuth login flow"""
+    if provider not in ['github', 'google']:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    
+    # Redirect to backend callback URL
+    redirect_uri = request.url_for(f'oauth_callback', provider=provider)
+    return await oauth.create_client(provider).authorize_redirect(request, redirect_uri)
+
+@app.get("/auth/{provider}/callback")
+async def oauth_callback(provider: str, request: Request, db: Session = Depends(get_db)):
+    """Handle OAuth callback and create/login user"""
+    if provider not in ['github', 'google']:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    
+    try:
+        client = oauth.create_client(provider)
+        token = await client.authorize_access_token(request)
+        
+        if provider == 'github':
+            resp = await client.get('user', token=token)
+            user_info = resp.json()
+            email_resp = await client.get('user/emails', token=token)
+            emails = email_resp.json()
+            primary_email = next((email['email'] for email in emails if email['primary']), user_info.get('email'))
+            
+            oauth_id = str(user_info['id'])
+            username = user_info.get('login')
+            email = primary_email
+            avatar_url = user_info.get('avatar_url')
+            
+        elif provider == 'google':
+            # Get user info from Google
+            print(f"🔍 Getting Google user info...")
+            resp = await client.get('userinfo', token=token)
+            print(f"Google response status: {resp.status_code}")
+            user_info = resp.json()
+            print(f"Google user info: {user_info}")
+            
+            oauth_id = user_info['id']  # Use 'id' instead of 'sub' for Google OAuth v2
+            username = user_info.get('name', '').replace(' ', '').lower()
+            email = user_info['email']
+            avatar_url = user_info.get('picture')
+            
+            print(f"Extracted: oauth_id={oauth_id}, username={username}, email={email}")
+        
+        # Check if user already exists
+        existing_user = db.query(User).filter(
+            (User.oauth_provider == provider) & (User.oauth_id == oauth_id)
+        ).first()
+        
+        if not existing_user:
+            # Check if email already exists
+            existing_email_user = db.query(User).filter(User.email == email).first()
+            if existing_email_user:
+                raise HTTPException(status_code=400, detail="Email already registered with different method")
+            
+            # Create new user
+            new_user = User(
+                email=email,
+                username=username,
+                oauth_provider=provider,
+                oauth_id=oauth_id,
+                avatar_url=avatar_url
+            )
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
+            user = new_user
+        else:
+            user = existing_user
+        
+        # Generate JWT token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = jwt.encode(
+            {"sub": str(user.id), "exp": datetime.utcnow() + access_token_expires},
+            SECRET_KEY,
+            algorithm=ALGORITHM
+        )
+        
+        # Redirect to frontend with token and user data
+        frontend_url = "http://localhost:3000/auth/callback"
+        redirect_url = f"{frontend_url}?token={access_token}&provider={provider}&user={json.dumps({
+            'id': str(user.id),
+            'email': user.email,
+            'name': user.username or user.email.split('@')[0],
+            'avatar_url': user.avatar_url,
+            'oauth_provider': user.oauth_provider,
+            'created_at': user.created_at.isoformat() if user.created_at is not None else None
+        })}"
+        
+        return RedirectResponse(url=redirect_url)
+        
+    except Exception as e:
+        print(f"OAuth error: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=400, detail=f"OAuth authentication failed: {str(e)}")
 
 
 # ✅ Add multiple expenses
@@ -526,7 +676,7 @@ async def get_dashboard_data(
 
 @app.post("/feedback")
 async def submit_feedback(
-    message: str = Body(...),
+    message: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

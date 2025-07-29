@@ -9,12 +9,14 @@ interface User {
   email: string;
   name: string;
   created_at?: string;
+  avatar_url?: string;
+  oauth_provider?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (data: LoginRequest) => Promise<void>;
+  login: (data: LoginRequest | { token: string; user: User }) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -66,15 +68,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, [router]);
 
-  const login = async (data: LoginRequest) => {
+  const login = async (data: LoginRequest | { token: string; user: User }) => {
     try {
-      // Use real backend API
+      if ('token' in data) {
+        // OAuth login - data already contains token and user
+        localStorage.setItem('jwt', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        document.cookie = `token=${data.token}; path=/;`;
+        setUser(data.user);
+      } else {
+        // Regular login - call API
       const response = await authAPI.login(data);
       const { token, user: userData } = response.data;
       localStorage.setItem('jwt', token);
       localStorage.setItem('user', JSON.stringify(userData));
       document.cookie = `token=${token}; path=/;`;
       setUser(userData);
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;

@@ -21,9 +21,12 @@ Base = declarative_base()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=True)  # Made nullable for OAuth users
     email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)  # Made nullable for OAuth users
+    oauth_provider = Column(String, nullable=True)  # 'github', 'google', or None for local
+    oauth_id = Column(String, nullable=True)  # OAuth provider's user ID
+    avatar_url = Column(String, nullable=True)  # Profile picture URL from OAuth
     savings_goal = Column(Float, default=float(os.getenv("DEFAULT_SAVINGS_GOAL", "10000.0")))
     current_savings = Column(Float, default=0.0)  # User-editable current savings
     is_admin = Column(Boolean, default=False)
@@ -60,6 +63,7 @@ class Transaction(Base):
     amount = Column(Float, nullable=False)
     category = Column(String, nullable=False)
     date = Column(String, nullable=False)
+    recurring = Column(Boolean, default=False)  # Add recurring field
     created_at = Column(String, default=lambda: datetime.now().isoformat())
 
 # ✅ Feedback model

@@ -1,0 +1,23 @@
+# OAuth Configuration Template
+# Copy these variables to your .env file
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# Instructions:
+# 1. For GitHub OAuth:
+#    - Go to https://github.com/settings/developers
+#    - Create a new OAuth App
+#    - Set Authorization callback URL to: http://localhost:8000/auth/github/callback
+#    - Copy Client ID and Client Secret
+
+# 2. For Google OAuth:
+#    - Go to https://console.cloud.google.com/apis/credentials
+#    - Create a new OAuth 2.0 Client ID
+#    - Set Authorized redirect URIs to: http://localhost:8000/auth/google/callback
+#    - Copy Client ID and Client Secret 

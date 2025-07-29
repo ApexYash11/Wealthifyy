@@ -37,6 +37,7 @@ export default function AddTransactionModal() {
   const [date, setDate] = useState(new Date());
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [recurring, setRecurring] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +141,19 @@ export default function AddTransactionModal() {
               />
               <CalendarIcon className="w-5 h-5 text-gray-400" />
             </div>
+          </div>
+          {/* Recurring */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="recurring"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <Label htmlFor="recurring" className="text-sm font-medium">
+              Recurring Transaction
+            </Label>
           </div>
           {/* Actions */}
           <div className="flex justify-end gap-2 mt-4">

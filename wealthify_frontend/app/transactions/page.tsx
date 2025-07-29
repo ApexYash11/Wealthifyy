@@ -74,8 +74,18 @@ export default function TransactionsPage() {
     const matchesSearch = tx.description.toLowerCase().includes(search.toLowerCase()) || tx.category.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = !category || tx.category === category;
     const matchesRecurring = !showRecurring || !!tx.recurring;
+    
+    // Debug logging
+    if (showRecurring) {
+      console.log(`Transaction: ${tx.description}, Recurring: ${tx.recurring}, Matches: ${matchesRecurring}`);
+    }
+    
     return matchesSearch && matchesCategory && matchesRecurring;
   });
+  
+  // Debug logging
+  console.log(`showRecurring: ${showRecurring}, Total transactions: ${transactions.length}, Filtered: ${filtered.length}`);
+  console.log(`Recurring transactions: ${transactions.filter(tx => tx.recurring).length}`);
 
   // Summaries
   const totalSpent = transactions.filter(tx => tx.type === "expense").reduce((sum, tx) => sum + tx.amount, 0);
@@ -180,7 +190,11 @@ export default function TransactionsPage() {
             </Button>
           </div>
           
-          <Button variant={showRecurring ? "default" : "outline"} className="bg-gradient-to-r from-purple-700 to-purple-500 text-white border-none" onClick={() => setShowRecurring(r => !r)}>
+          <Button 
+            variant={showRecurring ? "default" : "outline"} 
+            className={showRecurring ? "bg-gradient-to-r from-purple-700 to-purple-500 text-white border-none" : "border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20"}
+            onClick={() => setShowRecurring(r => !r)}
+          >
             <Repeat className="w-4 h-4 mr-2" /> Recurring
           </Button>
           <Button variant="outline" className="border-purple-700 text-purple-700 bg-white/10 hover:bg-purple-700/20" onClick={handleExport}>
@@ -194,7 +208,14 @@ export default function TransactionsPage() {
           <div className="rounded-2xl bg-gradient-to-b from-[#18181a] to-[#111113] shadow-lg p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Transactions</h2>
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  Transactions
+                  {showRecurring && (
+                    <span className="ml-2 text-sm text-purple-400">
+                      (Recurring Only - {filtered.length} of {transactions.length})
+                    </span>
+                  )}
+                </h2>
                 <p className="text-gray-400 text-sm">Your latest financial activities</p>
               </div>
               <Button variant="outline" className="border-gray-700 text-white bg-black/30 hover:bg-black/50" onClick={() => setShowAllModal(true)}>
@@ -202,7 +223,24 @@ export default function TransactionsPage() {
               </Button>
             </div>
             <div className="flex flex-col gap-4">
-              {filtered.map((tx) => (
+              {filtered.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  {showRecurring ? (
+                    <div>
+                      <div className="text-2xl mb-2">🔄</div>
+                      <p>No recurring transactions found</p>
+                      <p className="text-sm mt-1">Try adding some recurring transactions or check your filters</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-2xl mb-2">📋</div>
+                      <p>No transactions found</p>
+                      <p className="text-sm mt-1">Try adjusting your search or filters</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                filtered.map((tx) => (
                 <div
                   key={tx.id}
                   className={`flex items-center gap-4 rounded-xl px-6 py-5 ${tx.type === "income" ? "bg-[#232325]" : "bg-[#18181a]"}`}
@@ -215,6 +253,12 @@ export default function TransactionsPage() {
                   <div className="flex-1">
                     <div className="text-white font-semibold text-lg flex items-center gap-2">
                       {tx.description}
+                      {showRecurring && tx.recurring && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-600/20 text-purple-300 rounded-full">
+                          <Repeat className="w-3 h-3" />
+                          Recurring
+                        </span>
+                      )}
                     </div>
                     <div className="text-gray-400 text-xs mt-1">{tx.date}</div>
                   </div>
@@ -222,7 +266,8 @@ export default function TransactionsPage() {
                     {tx.type === "expense" ? '-' : '+'}{formatRupees(Math.abs(tx.amount))}
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         ) : (
@@ -259,6 +304,12 @@ export default function TransactionsPage() {
                   <div className="flex-1">
                     <div className="text-white font-semibold text-lg flex items-center gap-2">
                       {tx.description}
+                      {showRecurring && tx.recurring && (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-600/20 text-purple-300 rounded-full">
+                          <Repeat className="w-3 h-3" />
+                          Recurring
+                        </span>
+                      )}
                     </div>
                     <div className="text-gray-400 text-xs mt-1">{tx.date}</div>
                   </div>
