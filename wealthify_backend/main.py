@@ -41,6 +41,7 @@ from schema import (
     PortfolioOverviewResponse
 )
 from ml_model import predict_expense, predict_savings, get_realistic_predictions, generate_6_month_forecast
+from supabase_auth import supabase_auth, get_current_user_supabase
 
 # Load environment variables
 load_dotenv()
@@ -84,8 +85,9 @@ conf = ConnectionConfig(
     VALIDATE_CERTS=True
 )
 
-# ✅ Authentication dependency
+# ✅ Authentication dependency - Using Supabase Auth
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Legacy authentication - kept for backward compatibility"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
@@ -97,6 +99,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         return user
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+# ✅ Supabase Authentication dependency
+def get_current_user_supabase_wrapper(
+    current_user: User = Depends(get_current_user_supabase)
+):
+    """Wrapper for Supabase authentication"""
+    return current_user
 
 # ✅ tokens and email verification
 def generate_token(email:str):
@@ -115,17 +124,33 @@ def verify_token(token:str):
 # forgot password
 @app.post("/forgot-password")
 async def forgot_password(email: str = Form(...)):
-    token = generate_token(email)
-    reset_url = f"{os.getenv('FRONTEND_URL')}/reset-password?token={token}"
-    message = MessageSchema(
-        subject="Reset Your Password",
-        recipients=[email],
-        body=f"Click the link to reset your password: {reset_url}",
-        subtype=MessageType.plain
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
-    return {"message": "Reset email sent."}
+    try:
+        # Check if user exists
+        db = next(get_db())
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Use Supabase Auth for password reset if user is using Supabase Auth
+        if user.password_hash == "supabase_auth":
+            # Use Supabase password reset
+            supabase_auth.reset_password(email)
+            return {"message": "Password reset email sent successfully via Supabase"}
+        else:
+            # Legacy email-based password reset
+            token = generate_token(email)
+            reset_url = f"{os.getenv('FRONTEND_URL')}/reset-password?token={token}"
+            message = MessageSchema(
+                subject="Reset Your Password",
+                recipients=[email],
+                body=f"Click the link to reset your password: {reset_url}",
+                subtype=MessageType.plain
+            )
+            fm = FastMail(conf)
+            await fm.send_message(message)
+            return {"message": "Reset email sent."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send reset email: {str(e)}")
 
 # ✅ reset password
 @app.post("/reset-password")
@@ -146,41 +171,61 @@ def reset_password(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
 
-# ✅ User Registration
+# ✅ User Registration with Supabase Auth
 @app.post("/register", response_model=LoginResponse)
 async def register(user: UserCreate, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="Username already exists")
-    if db.query(User).filter(User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already exists")
-
-    password_hash = pwd_context.hash(user.password)
-    new_user = User(
-        username=user.username,
-        email=user.email,
-        password_hash=password_hash
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # Generate token for the new user
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = jwt.encode(
-        {"sub": str(new_user.id), "exp": datetime.utcnow() + access_token_expires},
-        SECRET_KEY,
-        algorithm=ALGORITHM
-    )
-    
-    return {
-        "token": access_token,
-        "user": {
-            "id": str(new_user.id),
-            "email": new_user.email,
-            "name": new_user.username,
-            "created_at": new_user.created_at.isoformat() if new_user.created_at is not None else None
+    try:
+        # Check if user already exists in our database
+        existing_user = db.query(User).filter(User.email == user.email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Check if username already exists
+        if user.username:
+            existing_username = db.query(User).filter(User.username == user.username).first()
+            if existing_username:
+                raise HTTPException(status_code=400, detail="Username already taken")
+        
+        # Create user in Supabase Auth
+        supabase_response = supabase_auth.sign_up(
+            email=user.email,
+            password=user.password,
+            user_data={
+                "username": user.username or user.email.split("@")[0],
+                "name": user.username or user.email.split("@")[0]
+            }
+        )
+        
+        # Create user in our database
+        supabase_user = supabase_response["user"]
+        db_user = User(
+            supabase_id=supabase_user["id"],
+            email=user.email,
+            username=user.username or user.email.split("@")[0],
+            password_hash="supabase_auth",  # Placeholder for Supabase Auth users
+            savings_goal=DEFAULT_SAVINGS_GOAL,
+            current_savings=0.0
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+        # Return Supabase session data
+        session = supabase_response["session"]
+        return {
+            "token": session["access_token"],
+            "user": {
+                "id": str(db_user.id),
+                "email": db_user.email,
+                "name": db_user.username,
+                "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None,
+                "supabase_id": db_user.supabase_id
+            }
         }
-    }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 @app.post("/login", response_model=LoginResponse)
 async def login(
@@ -188,32 +233,72 @@ async def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    username_clean = username.strip()
-    print(f"🔍 Login attempt - Username: '{username}' (cleaned: '{username_clean}'), Password length: {len(password)}")
-    db_user = db.query(User).filter(User.username == username_clean).first()
-    if not db_user:
-        print(f"❌ No user found with username: '{username_clean}' (exact match)")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    print(f"✅ User found: ID={db_user.id}, Username='{db_user.username}', Email='{db_user.email}'")
-    if not pwd_context.verify(password, db_user.password_hash):
-        print(f"❌ Password verification failed")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    print(f"✅ Password verified successfully")
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = jwt.encode(
-        {"sub": str(db_user.id), "exp": datetime.utcnow() + access_token_expires},
-        SECRET_KEY,
-        algorithm=ALGORITHM
-    )
-    return {
-        "token": access_token,
-        "user": {
-            "id": str(db_user.id),
-            "email": db_user.email,
-            "name": db_user.username,  # Send username as name for display
-            "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None
-        }
-    }
+    try:
+        username_clean = username.strip()
+        print(f"🔍 Login attempt - Username: '{username}' (cleaned: '{username_clean}'), Password length: {len(password)}")
+        
+        # Try to find user by username or email
+        db_user = db.query(User).filter(User.username == username_clean).first()
+        if not db_user:
+            # Try by email
+            db_user = db.query(User).filter(User.email == username_clean).first()
+        
+        if not db_user:
+            print(f"❌ No user found with username/email: '{username_clean}'")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        print(f"✅ User found: ID={db_user.id}, Username='{db_user.username}', Email='{db_user.email}'")
+        
+        # Check if user is using Supabase Auth
+        if db_user.password_hash == "supabase_auth":
+            # Use Supabase Auth for authentication
+            try:
+                supabase_response = supabase_auth.sign_in(
+                    email=db_user.email,
+                    password=password
+                )
+                
+                session = supabase_response["session"]
+                return {
+                    "token": session["access_token"],
+                    "user": {
+                        "id": str(db_user.id),
+                        "email": db_user.email,
+                        "name": db_user.username,
+                        "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None,
+                        "supabase_id": db_user.supabase_id
+                    }
+                }
+            except Exception as e:
+                print(f"❌ Supabase Auth failed: {str(e)}")
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+        else:
+            # Legacy authentication for existing users
+            if not pwd_context.verify(password, db_user.password_hash):
+                print(f"❌ Password verification failed")
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+            
+            print(f"✅ Password verified successfully")
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = jwt.encode(
+                {"sub": str(db_user.id), "exp": datetime.utcnow() + access_token_expires},
+                SECRET_KEY,
+                algorithm=ALGORITHM
+            )
+            return {
+                "token": access_token,
+                "user": {
+                    "id": str(db_user.id),
+                    "email": db_user.email,
+                    "name": db_user.username,
+                    "created_at": db_user.created_at.isoformat() if db_user.created_at is not None else None
+                }
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 # ✅ Add multiple expenses
 @app.post("/expenses")
@@ -732,6 +817,63 @@ async def update_current_savings(
     db.commit()
     db.refresh(user)
     return {"message": "Current savings updated", "current_savings": user.current_savings}
+
+# ✅ Supabase Auth specific endpoints
+
+@app.post("/auth/supabase/verify")
+async def verify_supabase_token(
+    token: str = Body(..., embed=True),
+    db: Session = Depends(get_db)
+):
+    """Verify Supabase JWT token and return user data"""
+    try:
+        user = supabase_auth.get_user_from_token(token, db)
+        return {
+            "valid": True,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "supabase_id": user.supabase_id,
+                "savings_goal": user.savings_goal,
+                "current_savings": user.current_savings
+            }
+        }
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+@app.post("/auth/supabase/signout")
+async def supabase_signout(
+    current_user: User = Depends(get_current_user_supabase)
+):
+    """Sign out user from Supabase"""
+    try:
+        supabase_auth.sign_out("")  # Token is handled by Supabase client
+        return {"message": "Successfully signed out"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sign out failed: {str(e)}")
+
+@app.post("/auth/supabase/refresh")
+async def refresh_supabase_token(
+    refresh_token: str = Body(..., embed=True)
+):
+    """Refresh Supabase access token"""
+    try:
+        # This would typically use Supabase's refresh token endpoint
+        # For now, we'll return a message indicating the frontend should handle this
+        return {"message": "Token refresh should be handled by Supabase client"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Token refresh failed: {str(e)}")
+
+# ✅ Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "supabase_connected": bool(supabase_auth.supabase)
+    }
 
 # ✅ Local dev server (optional)
 if __name__ == "__main__":

@@ -77,13 +77,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         document.cookie = `token=${data.token}; path=/;`;
         setUser(data.user);
       } else {
-        // Regular login - call API
-      const response = await authAPI.login(data);
-      const { token, user: userData } = response.data;
-      localStorage.setItem('jwt', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      document.cookie = `token=${token}; path=/;`;
-      setUser(userData);
+        // Regular login - call backend API
+        const response = await authAPI.login(data);
+        const { token, user: userData } = response.data;
+        localStorage.setItem('jwt', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        document.cookie = `token=${token}; path=/;`;
+        setUser(userData);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (data: RegisterRequest) => {
     try {
-      // Use real backend API
+      // Use backend API
       const response = await authAPI.register(data);
       const { token, user: userData } = response.data;
       localStorage.setItem('jwt', token);
@@ -110,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('jwt');
     localStorage.removeItem('user');
     setUser(null);
+    // Redirect to landing page after logout
+    router.push('/');
   };
 
   const value = {

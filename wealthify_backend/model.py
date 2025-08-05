@@ -7,26 +7,33 @@ from datetime import datetime
 # ✅ Load environment variables
 load_dotenv()
 
-# ✅ Read DATABASE_URL from .env
+# ✅ Read DATABASE_URL from .env (Supabase connection string)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL not set")
+    # Use SQLite as fallback for local development
+    DATABASE_URL = "sqlite:///./wealthify.db"
+    print("⚠️  No DATABASE_URL found, using local SQLite database")
 
 # ✅ SQLAlchemy engine and session setup
 engine = create_engine(DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
-# ✅ User model
+# ✅ User model with Supabase integration
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, unique=True, index=True, nullable=True)  # Made nullable for Supabase Auth
     email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)  # Made nullable for Supabase Auth
     savings_goal = Column(Float, default=float(os.getenv("DEFAULT_SAVINGS_GOAL", "10000.0")))
     current_savings = Column(Float, default=0.0)  # User-editable current savings
     is_admin = Column(Boolean, default=False)
+    # Supabase Auth fields
+    supabase_id = Column(String, unique=True, index=True, nullable=True)  # Supabase Auth UUID
+    oauth_provider = Column(String, nullable=True)  # OAuth provider (google, github, etc.)
+    oauth_id = Column(String, nullable=True)  # OAuth provider user ID
+    avatar_url = Column(String, nullable=True)  # User avatar URL
     assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
     snapshots = relationship("PortfolioSnapshot", back_populates="user", cascade="all, delete-orphan")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -96,7 +103,12 @@ class PortfolioSnapshot(Base):
     user = relationship("User", back_populates="snapshots")
 
 # ✅ Creates tables if not present
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+    print("✅ Database tables created/verified successfully")
+except Exception as e:
+    print(f"❌ Failed to create database tables: {e}")
+    print("⚠️  Application will continue but database operations may fail")
 
 # ✅ Dependency for DB session
 def get_db():
