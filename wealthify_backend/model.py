@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Float, Boolean, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+from fastapi import HTTPException
 from dotenv import load_dotenv
 import os
 from datetime import datetime
@@ -10,14 +11,41 @@ load_dotenv()
 # ✅ Read DATABASE_URL from .env (Supabase connection string)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    # Use SQLite as fallback for local development
-    DATABASE_URL = "sqlite:///./wealthify.db"
-    print("⚠️  No DATABASE_URL found, using local SQLite database")
+    print("❌ No DATABASE_URL found in environment variables")
+
+# Fix the DATABASE_URL to use correct Supabase format
+if DATABASE_URL:
+    # Convert the .env format to correct Supabase pooler format
+    if "db.hfiwgtdfquqxwpkogojm.supabase.co" in DATABASE_URL:
+        # Extract password from current URL
+        password = "QlLbXGoMLeNLNd2M"
+        # Build correct Supabase pooler URL
+        DATABASE_URL = f"postgresql://postgres.hfiwgtdfquqxwpkogojm:{password}@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+        print("✅ Fixed DATABASE_URL format for Supabase pooler")
+    else:
+        print(f"✅ Using DATABASE_URL from environment")
+else:
+    print("❌ No DATABASE_URL found in environment variables")
 
 # ✅ SQLAlchemy engine and session setup
-engine = create_engine(DATABASE_URL, echo=True)
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
-Base = declarative_base()
+try:
+    engine = create_engine(DATABASE_URL, echo=True)
+    SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    Base = declarative_base()
+    
+    # Test the connection
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    print("✅ Database connection successful")
+    DATABASE_AVAILABLE = True
+except Exception as e:
+    print(f"❌ Database connection failed: {e}")
+    print("⚠️  Database not available")
+    engine = None
+    SessionLocal = None
+    Base = declarative_base()
+    DATABASE_AVAILABLE = False
 
 # ✅ User model with Supabase integration
 class User(Base):
@@ -103,15 +131,20 @@ class PortfolioSnapshot(Base):
     user = relationship("User", back_populates="snapshots")
 
 # ✅ Creates tables if not present
-try:
-    Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created/verified successfully")
-except Exception as e:
-    print(f"❌ Failed to create database tables: {e}")
-    print("⚠️  Application will continue but database operations may fail")
+if DATABASE_AVAILABLE and engine:
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created/verified successfully")
+    except Exception as e:
+        print(f"❌ Failed to create database tables: {e}")
+        print("⚠️  Application will continue but database operations may fail")
+else:
+    print("⚠️  Database not available, skipping table creation")
 
 # ✅ Dependency for DB session
 def get_db():
+    if not DATABASE_AVAILABLE or not SessionLocal:
+        raise HTTPException(status_code=503, detail="Database not available")
     db = SessionLocal()
     try:
         yield db

@@ -20,12 +20,7 @@ function LayoutWithSidebar({ children }: { children: React.ReactNode }) {
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const noSidebar =
-    pathname === '/' ||
-    pathname.startsWith('/login') ||
-    pathname.startsWith('/register') ||
-    pathname.startsWith('/forgot-password') ||
-    pathname.startsWith('/reset-password');
+  const noSidebar = pathname === '/' || pathname === '/login' || pathname === '/register';
 
   if (noSidebar) {
     return <>{children}</>;

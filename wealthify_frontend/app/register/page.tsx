@@ -3,124 +3,247 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { authAPI, setTokenInCookies } from '@/lib/auth-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import ThemeToggle from '@/components/ThemeToggle';
-import { useToast } from '@/hooks/use-toast';
-
-const registerSchema = z.object({
-  username: z.string().min(3, 'Username is required'),
-  email: z.string().email(),
-  password: z.string().min(6),
-  confirmPassword: z.string().min(6),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, handleSubmit, formState: { errors }, watch } = useForm({
-    resolver: zodResolver(registerSchema),
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    name: '',
+    password: '',
+    confirmPassword: '',
   });
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
-  const onSubmit = async (data) => {
-    setLoading(true);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const validateForm = () => {
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return false;
+    }
+
+    if (!formData.email.includes('@')) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+
+    if (formData.username.length < 3) {
+      setError('Username must be at least 3 characters long');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    if (!validateForm()) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: data.username,
-          email: data.email,
-          password: data.password,
-        }),
+      const response = await authAPI.register({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        toast({
-          title: 'Error',
-          description: err.detail || 'Registration failed',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-      setLoading(false);
-      toast({
-        title: 'Success',
-        description: 'Registration successful! Please log in.',
-      });
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1000);
-    } catch (e) {
-      toast({
-        title: 'Error',
-        description: 'Registration failed. Please try again.',
-        variant: 'destructive',
-      });
-      setLoading(false);
+
+      // Set token in cookies
+      setTokenInCookies(response.access_token);
+
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.response?.data?.detail || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-700 via-purple-500 to-indigo-700 px-4">
-      <ThemeToggle />
-      <div className="flex flex-col items-center mb-8 mt-4">
-        <div className="w-16 h-16 bg-gradient-to-r from-purple-400 to-purple-600 rounded-2xl flex items-center justify-center mb-2 shadow-lg">
-          <span className="text-white font-extrabold text-3xl">W</span>
-        </div>
-        <span className="text-3xl font-bold text-white tracking-tight mb-1 drop-shadow">Wealthify</span>
-        <span className="text-sm text-purple-100">Create your account</span>
-      </div>
-      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/90 dark:bg-gray-900/90">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center font-bold text-purple-700 dark:text-purple-200">Register</CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Create account</CardTitle>
+          <CardDescription className="text-center">
+            Sign up for your Wealthify account
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            <div>
-              <Label htmlFor="username" className="text-purple-700 dark:text-purple-200">Username</Label>
-              <Input id="username" type="text" {...register('username')} className="mt-1" />
-              {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
+        <CardContent className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                name="name"
+                type="text"
+                placeholder="Enter your full name"
+                value={formData.name}
+                onChange={handleInputChange}
+                required
+                disabled={isLoading}
+              />
             </div>
-            <div>
-              <Label htmlFor="email" className="text-purple-700 dark:text-purple-200">Email</Label>
-              <Input id="email" type="email" {...register('email')} className="mt-1" />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="Choose a username"
+                value={formData.username}
+                onChange={handleInputChange}
+                required
+                disabled={isLoading}
+              />
             </div>
-            <div>
-              <Label htmlFor="password" className="text-purple-700 dark:text-purple-200">Password</Label>
-              <Input id="password" type="password" {...register('password')} className="mt-1" />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                disabled={isLoading}
+              />
             </div>
-            <div>
-              <Label htmlFor="confirmPassword" className="text-purple-700 dark:text-purple-200">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" {...register('confirmPassword')} className="mt-1" />
-              {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword.message}</p>}
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Create a password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  required
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
-            <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-md hover:from-purple-700 hover:to-indigo-700 transition-all duration-200" disabled={loading}>
-              {loading ? 'Registering...' : 'Register'}
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  required
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isLoading}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating account...
+                </>
+              ) : (
+                'Create account'
+              )}
             </Button>
-            
-            <div className="flex justify-between text-xs mt-2">
-              <Link href="/login" className="text-purple-700 dark:text-purple-200 hover:underline">Login</Link>
-              <Link href="/forgot-password" className="text-purple-700 dark:text-purple-200 hover:underline">Forgot password?</Link>
-            </div>
           </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <Separator className="w-full" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Already have an account?
+              </span>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <Link
+              href="/login"
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Sign in to your account
+            </Link>
+          </div>
         </CardContent>
       </Card>
-      <div className="mt-8 text-xs text-purple-200 text-center">
-        © {new Date().getFullYear()} Wealthify. All rights reserved.
-      </div>
-    </main>
+    </div>
   );
-} 
+}

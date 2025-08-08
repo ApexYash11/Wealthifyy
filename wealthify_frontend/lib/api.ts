@@ -12,11 +12,16 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token from cookies
 apiClient.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('jwt');
+      // Get token from cookies (set by backend)
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
+      
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -43,17 +48,6 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  name: string;
-}
 
 export interface ExpenseCategory {
   food: number;
@@ -90,18 +84,6 @@ export interface TransactionRequest {
   category: string;
   date: string;
 }
-
-export const authAPI = {
-  login: (data: LoginRequest) => {
-    const formData = new FormData();
-    formData.append('username', data.username);
-    formData.append('password', data.password);
-    return apiClient.post('/login', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
-  register: (data: RegisterRequest) => apiClient.post('/register', data),
-};
 
 export const expenseAPI = {
   getExpenses: (userId: string, month?: string) => 

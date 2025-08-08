@@ -14,15 +14,17 @@ export default function PurpleLanding() {
           <span className="text-2xl font-bold text-white tracking-tight">Wealthify</span>
         </div>
         <div className="flex gap-3 items-center">
-          <Link href="/login">
-            <button className="px-6 py-2.5 rounded-lg font-medium bg-white/10 text-white hover:bg-white/20 transition-colors duration-200 border border-white/20">
-              Login
-            </button>
+          <Link 
+            href="/login"
+            className="px-6 py-2.5 rounded-lg font-medium bg-white/10 text-white hover:bg-white/20 transition-colors duration-200 border border-white/20 inline-block text-center"
+          >
+            Login
           </Link>
-          <Link href="/register">
-            <button className="px-6 py-2.5 rounded-lg font-medium bg-gradient-to-r from-purple-400 to-purple-600 text-white hover:from-purple-500 hover:to-purple-700 transition-all duration-200 shadow-lg">
-              Sign Up
-            </button>
+          <Link 
+            href="/register"
+            className="px-6 py-2.5 rounded-lg font-medium bg-gradient-to-r from-purple-400 to-purple-600 text-white hover:from-purple-500 hover:to-purple-700 transition-all duration-200 shadow-lg inline-block text-center"
+          >
+            Sign Up
           </Link>
         </div>
       </header>
@@ -40,10 +42,11 @@ export default function PurpleLanding() {
             Take control of your money with Wealthify. Track expenses, get AI-powered insights, and achieve your financial goals—all in one beautiful dashboard.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/register">
-              <button className="px-10 py-4 rounded-xl bg-gradient-to-r from-purple-400 to-purple-600 text-white font-semibold text-xl shadow-2xl hover:from-purple-500 hover:to-purple-700 transition-all duration-300 transform hover:scale-105">
-                Get Started Free
-              </button>
+            <Link 
+              href="/register"
+              className="px-10 py-4 rounded-xl bg-gradient-to-r from-purple-400 to-purple-600 text-white font-semibold text-xl shadow-2xl hover:from-purple-500 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 inline-block text-center"
+            >
+              Get Started Free
             </Link>
           </div>
         </div>

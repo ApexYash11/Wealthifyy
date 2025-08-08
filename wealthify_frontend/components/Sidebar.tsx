@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, FileText, BarChart2, Brain, TrendingUp, Settings, LogOut, User, Sparkles, Menu, X } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const navLinks = [
@@ -19,11 +18,11 @@ const navLinks = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const { user, logout } = useAuth();
 
   const handleLogout = () => {
-    logout();
-    // The AuthContext will handle redirecting to login
+    // Clear any frontend cookies and redirect to backend logout
+    document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/logout`;
   };
 
   // Sidebar content
@@ -37,7 +36,7 @@ export default function Sidebar() {
         <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-700 to-purple-400 flex items-center justify-center text-white text-2xl font-bold mb-2">
           <User className="w-8 h-8" />
         </div>
-        <div className="text-lg font-semibold">{user?.name || 'User'}</div>
+        <div className="text-lg font-semibold">User</div>
         <div className="text-xs text-purple-200 mb-4">Premium Member</div>
       </div>
       <nav className="flex-1 px-4">

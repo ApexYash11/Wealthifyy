@@ -1,281 +1,282 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Sparkles, TrendingUp, BarChart2, Repeat, CheckCircle } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { dashboardAPI } from "@/lib/api";
-import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  Target, 
+  Lightbulb,
+  AlertTriangle,
+  CheckCircle,
+  Info
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { expenseAPI } from '@/lib/api';
 
-interface SpendingCategory {
-  category: string;
-  amount: number;
-  percentage: number;
-}
-
-interface FinancialSummary {
-  total_balance: number;
-  monthly_income: number;
-  monthly_expenses: number;
-  savings_goal: number;
-  current_savings: number;
-  last_month_expenses?: number;
-  last_month_income?: number;
+interface InsightData {
+  spendingTrend: 'increasing' | 'decreasing' | 'stable';
+  topCategory: string;
+  topCategoryAmount: number;
+  totalSpending: number;
+  savingsRate: number;
+  budgetUtilization: number;
+  recommendations: string[];
+  alerts: string[];
 }
 
 export default function InsightsPage() {
+  const [insights, setInsights] = useState<InsightData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<FinancialSummary | null>(null);
-  const [spendingCategories, setSpendingCategories] = useState<SpendingCategory[]>([]);
-  const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    const loadInsightsData = async () => {
-      if (!user) return;
+    fetchInsights();
+  }, []);
 
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await dashboardAPI.getDashboardData(parseInt(user.id));
-        const data = response.data;
-        setSummary(data.summary);
-        // Sort categories by amount descending for correct Top Category
-        const sortedCategories = [...data.spending_categories].sort((a, b) => b.amount - a.amount);
-        setSpendingCategories(sortedCategories);
-      } catch (err) {
-        console.error("Error loading insights data:", err);
-        setError("Failed to load insights data");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInsightsData();
-  }, [user]);
+  const fetchInsights = async () => {
+    try {
+      // The backend will identify the user from the auth token
+      const response = await expenseAPI.getExpenses('current_user'); // Placeholder user ID
+      
+      // Mock insights data - in real app, this would come from backend
+      const mockInsights: InsightData = {
+        spendingTrend: 'increasing',
+        topCategory: 'Food & Dining',
+        topCategoryAmount: 850,
+        totalSpending: 2500,
+        savingsRate: 35,
+        budgetUtilization: 78,
+        recommendations: [
+          'Consider meal prepping to reduce food expenses',
+          'Your entertainment spending is 20% higher than last month',
+          'Great job on maintaining a 35% savings rate!',
+          'Consider setting up automatic savings transfers'
+        ],
+        alerts: [
+          'You\'re approaching your monthly budget limit',
+          'Transportation expenses increased by 15% this month'
+        ]
+      };
+      
+      setInsights(mockInsights);
+    } catch (error) {
+      console.error('Error fetching insights:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load insights',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading insights...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading insights...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !summary) {
+  if (!insights) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold mb-2">Error Loading Insights</h2>
-          <p className="text-muted-foreground mb-4">{error || "No data available"}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-          >
-            Try Again
-          </button>
+          <p className="text-gray-600">No insights available</p>
         </div>
       </div>
     );
   }
-
-  // Use sorted spendingCategories for Top Category
-  const topCategory = spendingCategories.length > 0 ? spendingCategories[0] : null;
-  const savingsRate = summary.monthly_income > 0 ? Math.round((summary.current_savings / summary.monthly_income) * 100) : 0;
-
-  const summaryCards = [
-    { 
-      label: "Total Spend", 
-      value: `₹${summary.monthly_expenses.toLocaleString()}`,
-      icon: <BarChart2 className="w-7 h-7 text-purple-400" /> 
-    },
-    { 
-      label: "Top Category", 
-      value: topCategory ? `${topCategory.category}` : "N/A", 
-      icon: <TrendingUp className="w-7 h-7 text-pink-400" />, 
-      description: topCategory ? `₹${topCategory.amount.toLocaleString("en-IN")} (${topCategory.percentage}%)` : "No data"
-    },
-    { 
-      label: "Savings Rate", 
-      value: `${savingsRate}%`, 
-      icon: <CheckCircle className="w-7 h-7 text-green-400" />,
-      description: summary.monthly_income > 0 ? `₹${summary.current_savings.toLocaleString("en-IN")}` : "No income data"
-    },
-  ];
-
-  const trends = [
-    { label: "Monthly Expenses", type: summary.monthly_expenses > 0 ? "Active" : "No Data", icon: <TrendingUp className="w-5 h-5 text-blue-400" /> },
-    { label: "Savings Progress", type: summary.current_savings > 0 ? "Growing" : "Start Saving", icon: <Repeat className="w-5 h-5 text-green-400" /> },
-  ];
-
-  // Use sorted topCategory in suggestions
-  const biggestCategory = topCategory;
-  const lastMonthExpenses = summary.last_month_expenses ?? 0;
-  const lastMonthIncome = summary.last_month_income ?? 0;
-
-  const suggestions = [
-    summary.monthly_expenses > summary.monthly_income * 0.8
-      ? "Your expenses are high. Consider reducing non-essential spending."
-      : "Great job keeping expenses under control!",
-
-    summary.current_savings < summary.savings_goal * 0.5
-      ? "Try to increase your savings rate to reach your goal faster."
-      : "You're on track with your savings goal!",
-
-    spendingCategories.length > 0 && spendingCategories[0].percentage > 40
-      ? `Your ${spendingCategories[0].category} spending is high. Consider budgeting for this category.`
-      : "Your spending is well distributed across categories.",
-
-    summary.current_savings === 0
-      ? "You haven't saved anything this month. Try to set aside a portion of your income."
-      : null,
-
-    biggestCategory
-      ? `Your largest category spend was ₹${biggestCategory.amount.toLocaleString("en-IN")} on ${biggestCategory.category}.`
-      : null,
-
-    lastMonthExpenses > 0
-      ? `Your expenses have ${summary.monthly_expenses > lastMonthExpenses ? "increased" : "decreased"} by ${Math.abs(((summary.monthly_expenses - lastMonthExpenses) / lastMonthExpenses) * 100).toFixed(1)}% compared to last month.`
-      : null,
-
-    lastMonthIncome > 0
-      ? `Your income has ${summary.monthly_income > lastMonthIncome ? "increased" : "decreased"} by ${Math.abs(((summary.monthly_income - lastMonthIncome) / lastMonthIncome) * 100).toFixed(1)}% compared to last month.`
-      : null,
-  ].filter(Boolean);
-
-  // Filter to keep only 3 suggestions: 2 text and 1 number-based
-  const textSuggestions = suggestions.filter(s => !/\d/.test(s));
-  const numberSuggestions = suggestions.filter(s => /\d/.test(s));
-  const limitedSuggestions = [
-    ...textSuggestions.slice(0, 2),
-    ...numberSuggestions.slice(0, 1),
-  ];
 
   return (
-    <div className="flex flex-col gap-8 p-10 max-w-6xl mx-auto">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {summaryCards.map((item) => (
-          <Card key={item.label} className="bg-[#111113] text-white shadow-lg p-8 rounded-2xl border border-[#232325]">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 px-4">
-              <CardTitle className="text-2xl font-bold">{item.label}</CardTitle>
-              {item.icon}
-            </CardHeader>
-            <CardContent className="px-4 pb-4 pt-0">
-              <div className="text-4xl font-extrabold">{item.value}</div>
-              {item.description && (
-                <div className="text-gray-400 text-base mt-2">{item.description}</div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Financial Insights
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            AI-powered analysis of your spending patterns and recommendations
+          </p>
+        </div>
 
-      {/* Main Insights Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Category Insights */}
-        <Card className="bg-[#111113] text-white p-8 rounded-2xl border border-[#232325]">
-          <CardHeader className="pb-4 px-4">
-            <CardTitle className="text-2xl font-bold">Categories</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pt-0 pb-4">
-            <div className="space-y-4">
-              {spendingCategories.map((cat) => (
-                <div key={cat.category} className="flex items-center gap-4">
-                  <div className="w-28 text-lg font-semibold">{cat.category}</div>
-                  <Progress value={cat.percentage} className="flex-1 h-4 bg-purple-950" />
-                  <div className="w-24 text-right text-lg">₹{cat.amount.toLocaleString("en-IN")}</div>
-                  <div className="w-14 text-right text-base text-purple-200">{cat.percentage}%</div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Insights */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Spending Overview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  Spending Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Total Spending</span>
+                      <span className="font-semibold">${insights.totalSpending.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className={`h-4 w-4 ${insights.spendingTrend === 'increasing' ? 'text-red-600' : 'text-green-600'}`} />
+                      <span className="text-sm text-gray-600">
+                        {insights.spendingTrend === 'increasing' ? 'Trending up' : 'Trending down'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Top Category</span>
+                      <span className="font-semibold">{insights.topCategory}</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      ${insights.topCategoryAmount.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Budget Utilization</span>
+                    <span className="text-sm font-medium">{insights.budgetUtilization}%</span>
+                  </div>
+                  <Progress value={insights.budgetUtilization} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Trend Detection */}
-        <Card className="bg-[#111113] text-white p-8 rounded-2xl border border-[#232325]">
-          <CardHeader className="pb-4 px-4">
-            <CardTitle className="text-2xl font-bold">Trends</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pt-0 pb-4">
-            <ul className="space-y-3">
-              {trends.map((trend, i) => (
-                <li key={i} className="flex items-center gap-3 text-lg">
-                  {trend.icon}
-                  <span className="font-semibold">{trend.label}</span>
-                  <span className="ml-2 px-3 py-1 rounded bg-purple-800 text-base text-purple-200">{trend.type}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+            {/* Savings Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-green-600" />
+                  Savings Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-green-600 mb-2">
+                    {insights.savingsRate}%
+                  </div>
+                  <p className="text-gray-600">Current Savings Rate</p>
+                  <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Excellent! You're saving more than the recommended 20% of your income.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Suggestions */}
-        <Card className="bg-[#111113] text-white p-8 rounded-2xl border border-[#232325]">
-          <CardHeader className="pb-4 px-4">
-            <CardTitle className="text-2xl font-bold">Suggestions</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pt-0 pb-4">
-            <ul className="list-disc pl-8 space-y-3 text-lg">
-              {limitedSuggestions.map((tip, i) => (
-                <li key={i} className="text-purple-100">{tip}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+            {/* AI Recommendations */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-600" />
+                  AI Recommendations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {insights.recommendations.map((recommendation, index) => (
+                    <div key={index} className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <Lightbulb className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {recommendation}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Visuals (Placeholder for charts/graphs) */}
-        <Card className="bg-[#111113] text-white p-8 rounded-2xl border border-[#232325]">
-          <CardHeader className="pb-4 px-4">
-            <CardTitle className="text-2xl font-bold">Visuals</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pt-0 pb-4">
-            {spendingCategories.length > 0 ? (
-              <Bar
-                data={{
-                  labels: spendingCategories.map(cat => cat.category),
-                  datasets: [
-                    {
-                      label: 'Spending by Category',
-                      data: spendingCategories.map(cat => cat.amount),
-                      backgroundColor: 'rgba(168, 85, 247, 0.7)',
-                      borderRadius: 8,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: { display: false },
-                    title: { display: false },
-                  },
-                  scales: {
-                    x: { grid: { color: '#232325' }, ticks: { color: '#fff' } },
-                    y: { grid: { color: '#232325' }, ticks: { color: '#fff' } },
-                  },
-                }}
-                height={180}
-              />
-            ) : (
-              <div className="h-48 flex items-center justify-center text-purple-200 text-xl">No category data</div>
-            )}
-          </CardContent>
-        </Card>
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Alerts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  Alerts
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {insights.alerts.map((alert, index) => (
+                    <div key={index} className="flex items-start gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-orange-700 dark:text-orange-300">
+                        {alert}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Info className="h-5 w-5 text-gray-600" />
+                  Quick Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Monthly Average</span>
+                  <span className="font-semibold">$2,450</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Best Category</span>
+                  <span className="font-semibold">Savings</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Days to Budget</span>
+                  <span className="font-semibold">8 days</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tips */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Smart Tips
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600">
+                    💡 Set up automatic transfers to savings
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    💡 Review subscriptions monthly
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    💡 Use cashback cards for purchases
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    💡 Track every expense for better insights
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

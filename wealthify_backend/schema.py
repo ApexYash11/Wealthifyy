@@ -123,15 +123,15 @@ class AssetResponse(AssentBase):
     buy_date: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # schema for portfolio snapshot response 
 class PortfolioSnapshotResponse(BaseModel):
     value: float
     timestamp: datetime 
     
-    class config:
-        orm_mode = True
+    class Config:
+        from_attributes = True
 
 
 #schema for portfolio overview response 

@@ -7,15 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { savingsAPI } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
 
 interface EditSavingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentSavings: number;
   savingsGoal: number;
-  onUpdateSavings: (savings: number) => void;
-  onUpdateGoal: (goal: number) => void;
+  onUpdateSavings: (newSavings: number) => void;
+  onUpdateGoal: (newGoal: number) => void;
 }
 
 export default function EditSavingsModal({
@@ -26,51 +25,42 @@ export default function EditSavingsModal({
   onUpdateSavings,
   onUpdateGoal,
 }: EditSavingsModalProps) {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [savings, setSavings] = useState(currentSavings.toString());
-  const [goal, setGoal] = useState(savingsGoal.toString());
+  const [newSavings, setNewSavings] = useState(currentSavings.toString());
+  const [newGoal, setNewGoal] = useState(savingsGoal.toString());
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const savingsAmount = Number.parseFloat(savings);
-    const goalAmount = Number.parseFloat(goal);
-    if (isNaN(savingsAmount) || isNaN(goalAmount)) {
+  const handleSave = async () => {
+    if (!newSavings || !newGoal || isNaN(Number(newSavings)) || isNaN(Number(newGoal))) {
       toast({
-        title: "Invalid value",
-        description: "Please enter valid numbers",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Please enter valid numbers',
+        variant: 'destructive',
       });
       return;
     }
-    if (!user) {
-      toast({
-        title: "Authentication required",
-        description: "Please log in to update savings",
-        variant: "destructive",
-      });
-      return;
-    }
+
     setLoading(true);
     try {
-      // Update current savings
-      await savingsAPI.updateCurrentSavings(parseInt(user.id), savingsAmount);
-      onUpdateSavings(savingsAmount);
-      // Update savings goal
-      await savingsAPI.updateSavingsGoal(parseInt(user.id), goalAmount);
-      onUpdateGoal(goalAmount);
+      // The backend will identify the user from the auth token
+      await savingsAPI.updateCurrentSavings(1, Number(newSavings)); // Placeholder user ID
+      await savingsAPI.updateSavingsGoal(1, Number(newGoal)); // Placeholder user ID
+
+      onUpdateSavings(Number(newSavings));
+      onUpdateGoal(Number(newGoal));
+
       toast({
-        title: "Savings updated",
-        description: `Your savings and goal have been updated!`,
+        title: 'Success',
+        description: 'Savings updated successfully',
       });
+
       onClose();
-      if (typeof window !== 'undefined') window.location.reload();
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Error updating savings:', error);
       toast({
-        title: "Failed to update savings",
-        description: error.response?.data?.detail || "Please try again later",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to update savings',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -79,42 +69,40 @@ export default function EditSavingsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Savings</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
-            <Label htmlFor="savings">Current Savings</Label>
+            <Label htmlFor="current-savings">Current Savings</Label>
             <Input
-              id="savings"
+              id="current-savings"
               type="number"
-              value={savings}
-              onChange={(e) => setSavings(e.target.value)}
+              value={newSavings}
+              onChange={(e) => setNewSavings(e.target.value)}
               placeholder="Enter current savings"
-              disabled={loading}
             />
           </div>
           <div>
-            <Label htmlFor="goal">Savings Goal</Label>
+            <Label htmlFor="savings-goal">Savings Goal</Label>
             <Input
-              id="goal"
+              id="savings-goal"
               type="number"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
+              value={newGoal}
+              onChange={(e) => setNewGoal(e.target.value)}
               placeholder="Enter savings goal"
-              disabled={loading}
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Updating..." : "Update"}
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : 'Save'}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

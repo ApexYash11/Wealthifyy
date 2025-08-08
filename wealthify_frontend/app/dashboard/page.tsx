@@ -1,262 +1,321 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  ArrowUpCircle,
-  ArrowDownCircle,
-  PiggyBank,
-  TrendingUp,
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  DollarSign, 
+  PiggyBank, 
+  Target, 
   Plus,
-  Bell,
-  Settings,
-  CreditCard,
-  Wallet,
-  ChevronRight,
-  IndianRupee,
-  Edit,
-  BarChart2,
-  CheckCircle,
-} from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import AddTransactionModal from "@/components/add-transaction-modal";
-import EditSavingsModal from "@/components/edit-savings-modal";
-import { useFinancialData } from "@/hooks/use-financial-data";
-import { useAuth } from "@/context/AuthContext";
-import { Toaster } from "@/components/toaster";
-import { Doughnut, Line, Pie } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip as ChartTooltip,
-  Legend as ChartLegend,
-  LineElement,
-  PointElement,
-  LinearScale,
-  CategoryScale,
-} from 'chart.js';
+  ArrowUpRight,
+  ArrowDownRight,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { formatRupees } from '@/lib/utils';
-import ThemeToggle from '@/components/ThemeToggle';
-import type { Transaction } from "@/components/add-transaction-modal";
+import { useToast } from '@/hooks/use-toast';
+import { dashboardAPI, savingsAPI } from '@/lib/api';
 
-ChartJS.register(ArcElement, ChartTooltip, ChartLegend, LineElement, PointElement, LinearScale, CategoryScale);
+interface DashboardData {
+  totalIncome: number;
+  totalExpenses: number;
+  currentSavings: number;
+  savingsGoal: number;
+  monthlyBudget: number;
+  budgetUsed: number;
+  recentTransactions: Array<{
+    id: number;
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    date: string;
+  }>;
+  expenseBreakdown: {
+    category: string;
+    amount: number;
+    percentage: number;
+  }[];
+}
 
 export default function DashboardPage() {
-  const { data, addTransaction, updateSavings, updateSavingsGoal, loading, error } = useFinancialData();
-  const { user } = useAuth();
-  const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false);
-  const [isEditSavingsModalOpen, setIsEditSavingsModalOpen] = useState(false);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showBalance, setShowBalance] = useState(true);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [newGoal, setNewGoal] = useState('');
   const router = useRouter();
+  const { toast } = useToast();
 
-  // Get user's display name
-  const getUserDisplayName = () => {
-    if (user?.name) return user.name;
-    if (user?.email) return user.email.split('@')[0]; // Use email prefix as fallback
-    return 'User';
-  };
-
-  // Handler for adding a transaction
-  const handleAddTransaction = async (transaction: Transaction) => {
-    try {
-      await addTransaction(transaction);
-      // Optionally, you can call refreshData() if available from useFinancialData
-      if (typeof window !== 'undefined') {
-        // Force a reload of dashboard data if needed
-        window.location.reload();
-      }
-      setIsAddTransactionModalOpen(false);
-    } catch (e) {
-      alert('Failed to add transaction. Please try again.');
-    }
-  };
-
-  // JWT token check
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
-    if (!token) {
-      router.replace('/login');
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // The backend will identify the user from the auth token
+      const response = await dashboardAPI.getDashboardData(1); // Placeholder user ID
+      setData(response.data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load dashboard data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
-  }, [router]);
+  };
+
+  const handleUpdateSavingsGoal = async () => {
+    if (!newGoal || isNaN(Number(newGoal))) return;
+
+    try {
+      await savingsAPI.updateSavingsGoal(1, Number(newGoal)); // Placeholder user ID
+      setData(prev => prev ? { ...prev, savingsGoal: Number(newGoal) } : null);
+      setEditingGoal(false);
+      setNewGoal('');
+      toast({
+        title: 'Success',
+        description: 'Savings goal updated successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update savings goal',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (loading) {
     return (
-      <main className="flex-1 flex flex-col items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading your financial data...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
-  if (error) {
+  if (!data) {
     return (
-      <main className="flex-1 flex flex-col items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold mb-2">Error Loading Data</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-          >
-            Try Again
-          </button>
+          <p className="text-gray-600">No data available</p>
         </div>
-      </main>
+      </div>
     );
   }
 
-  // Calculate top category and savings rate
-  const topCategory = data.spendingCategories.length > 0 ? data.spendingCategories[0] : null;
-  const savingsRate = data.monthlyIncome > 0 ? Math.round((data.currentSavings / data.monthlyIncome) * 100) : 0;
-
-  // Define vibrantColors for both chart and breakdown
-  const vibrantColors = [
-    'rgba(162,89,255,0.9)', 'rgba(110,193,228,0.9)', 'rgba(126,231,135,0.9)', 'rgba(255,224,102,0.9)', 'rgba(255,179,198,0.9)',
-    'rgba(255,214,224,0.9)', 'rgba(181,234,215,0.9)', 'rgba(247,214,224,0.9)', 'rgba(255,180,162,0.9)', 'rgba(178,247,239,0.9)',
-    'rgba(181,185,255,0.9)', 'rgba(212,252,121,0.9)',
-  ];
-  // Map each category to its color by index
-  const categoryColorMap = Object.fromEntries(
-    data.spendingCategories.map((cat, idx) => [cat.category, vibrantColors[idx % vibrantColors.length]])
-  );
+  const savingsProgress = data.savingsGoal > 0 ? (data.currentSavings / data.savingsGoal) * 100 : 0;
+  const budgetProgress = data.monthlyBudget > 0 ? (data.budgetUsed / data.monthlyBudget) * 100 : 0;
+  const netIncome = data.totalIncome - data.totalExpenses;
 
   return (
-    <div className="p-8 min-h-screen bg-gradient-to-br from-[#181c2a] to-[#232946]">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-4xl font-extrabold mb-1">
-            Welcome back, <span className="bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">{getUserDisplayName()}</span>
-          </h1>
-          <p className="text-gray-400 text-lg">Here's your financial overview</p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              Welcome back, User!
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              Here's your financial overview
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBalance(!showBalance)}
+            >
+              {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showBalance ? 'Hide' : 'Show'} Balance
+            </Button>
+            <Button onClick={() => router.push('/add-expense')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Expense
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <Button
-            className="bg-gradient-to-r from-purple-500 to-purple-700 text-white font-semibold shadow-md hover:from-purple-600 hover:to-purple-800 px-6 py-2 text-lg"
-            onClick={() => setIsAddTransactionModalOpen(true)}
-          >
-            + Add Transaction
-          </Button>
-          <AddTransactionModal
-            isOpen={isAddTransactionModalOpen}
-            onClose={() => setIsAddTransactionModalOpen(false)}
-            onAddTransaction={handleAddTransaction}
-          />
-        </div>
-      </div>
 
-      {/* Main Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-semibold">Total Balance</CardTitle>
-            <IndianRupee className="h-6 w-6 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.totalBalance.toLocaleString()}</div>
-            <div className="text-green-400 text-sm flex items-center gap-1">
-              {data.lastMonthBalance > 0 ? 
-                `${data.totalBalance > data.lastMonthBalance ? '+' : ''}${(((data.totalBalance - data.lastMonthBalance) / data.lastMonthBalance) * 100).toFixed(1)}% from last month` :
-                'New this month'
-              }
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-semibold">Monthly Income</CardTitle>
-            <ArrowUpCircle className="h-6 w-6 text-green-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.monthlyIncome}</div>
-            <div className="text-gray-400 text-sm">Last updated today</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-semibold">Monthly Expenses</CardTitle>
-            <ArrowDownCircle className="h-6 w-6 text-red-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.monthlyExpenses.toLocaleString()}</div>
-            <div className="text-red-400 text-sm flex items-center gap-1">
-              {data.lastMonthExpenses > 0 ? 
-                `${data.monthlyExpenses > data.lastMonthExpenses ? '+' : ''}${(((data.monthlyExpenses - data.lastMonthExpenses) / data.lastMonthExpenses) * 100).toFixed(1)}% from last month` :
-                'New this month'
-              }
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-[#181c2a] text-white rounded-2xl shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-semibold">Savings Goal</CardTitle>
-            <div className="flex items-center gap-2">
-              <PiggyBank className="h-6 w-6 text-purple-400" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsEditSavingsModalOpen(true)}
-                className="p-1 h-8 w-8 text-purple-400 hover:text-purple-300 hover:bg-purple-400/10"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold mb-1">₹{data.savingsGoal.toLocaleString()}</div>
-            <div className="w-full bg-gray-700 rounded-full h-2 mb-1">
-              <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${Math.min(100, (data.currentSavings / data.savingsGoal) * 100)}%` }}></div>
-            </div>
-            <div className="text-gray-400 text-sm">
-              ₹{(data.savingsGoal - data.currentSavings).toLocaleString()} to goal
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Spending Breakdown */}
-      <div className="bg-[#181c2a] rounded-2xl shadow-lg p-6 mb-8">
-        <h3 className="text-2xl font-bold text-white mb-2">Monthly Spending Breakdown</h3>
-        <p className="text-gray-400 mb-6">Your spending categorized by type</p>
-        <div className="space-y-4">
-          {data.spendingCategories.map((cat, idx) => (
-            <div key={cat.category} className="mb-2">
-              <div className="flex justify-between items-center mb-1">
-                <span className={`font-semibold`} style={{ color: vibrantColors[idx % vibrantColors.length] }}>{cat.category}</span>
-                <span className="text-white font-semibold">₹{cat.amount}</span>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Income</CardTitle>
+              <DollarSign className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {showBalance ? `$${data.totalIncome.toLocaleString()}` : '••••••'}
               </div>
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div
-                  className="h-2 rounded-full"
-                  style={{
-                    width: `${cat.percentage}%`,
-                    background: vibrantColors[idx % vibrantColors.length],
-                  }}
-                ></div>
+              <p className="text-xs text-muted-foreground">
+                This month
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {showBalance ? `$${data.totalExpenses.toLocaleString()}` : '••••••'}
               </div>
-              <div className="text-right text-gray-400 text-xs mt-1">{cat.percentage}%</div>
-            </div>
-          ))}
+              <p className="text-xs text-muted-foreground">
+                This month
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Net Income</CardTitle>
+              {netIncome >= 0 ? (
+                <ArrowUpRight className="h-4 w-4 text-green-600" />
+              ) : (
+                <ArrowDownRight className="h-4 w-4 text-red-600" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {showBalance ? `$${Math.abs(netIncome).toLocaleString()}` : '••••••'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {netIncome >= 0 ? 'Positive' : 'Negative'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Current Savings</CardTitle>
+              <PiggyBank className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {showBalance ? `$${data.currentSavings.toLocaleString()}` : '••••••'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {savingsProgress.toFixed(1)}% of goal
+              </p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Savings Goal and Budget Progress */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Savings Goal</CardTitle>
+                <Target className="h-5 w-5 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Progress</span>
+                  <span className="text-sm font-medium">
+                    ${data.currentSavings.toLocaleString()} / ${data.savingsGoal.toLocaleString()}
+                  </span>
+                </div>
+                <Progress value={savingsProgress} className="h-2" />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Goal</span>
+                  {editingGoal ? (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        value={newGoal}
+                        onChange={(e) => setNewGoal(e.target.value)}
+                        className="w-20 px-2 py-1 text-sm border rounded"
+                        placeholder={data.savingsGoal.toString()}
+                      />
+                      <Button size="sm" onClick={handleUpdateSavingsGoal}>Save</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingGoal(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setEditingGoal(true)}>
+                      Edit Goal
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Monthly Budget</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Used</span>
+                  <span className="text-sm font-medium">
+                    ${data.budgetUsed.toLocaleString()} / ${data.monthlyBudget.toLocaleString()}
+                  </span>
+                </div>
+                <Progress value={budgetProgress} className="h-2" />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Remaining</span>
+                  <span className="text-sm font-medium">
+                    ${(data.monthlyBudget - data.budgetUsed).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Transactions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Transactions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data.recentTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
+                      {transaction.type === 'income' ? (
+                        <TrendingUp className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">{transaction.description}</p>
+                      <p className="text-sm text-muted-foreground">{transaction.date}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString()}
+                    </p>
+                    <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'}>
+                      {transaction.type}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
-      {/* Edit Savings Modal */}
-      <EditSavingsModal
-        isOpen={isEditSavingsModalOpen}
-        onClose={() => setIsEditSavingsModalOpen(false)}
-        currentSavings={data.currentSavings}
-        savingsGoal={data.savingsGoal}
-        onUpdateSavings={updateSavings}
-        onUpdateGoal={updateSavingsGoal}
-      />
-
-      {/* Add more sections here for Recent Transactions, Investments, etc. */}
     </div>
   );
 }
