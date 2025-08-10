@@ -17,12 +17,14 @@ const authClient = axios.create({
 authClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('Auth API Error:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-      url: error.config?.url,
-    });
+    const errorDetails = {
+      message: error.message || 'Unknown error',
+      status: error.response?.status || 'No status',
+      data: error.response?.data || 'No data',
+      url: error.config?.url || 'No URL',
+      fullError: error.toString()
+    };
+    console.error('Auth API Error:', errorDetails);
     return Promise.reject(error);
   }
 );

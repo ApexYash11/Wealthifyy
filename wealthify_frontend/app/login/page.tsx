@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signIn, getSession } from 'next-auth/react';
 import { authAPI, setTokenInCookies } from '@/lib/auth-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,29 +35,17 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Try NextAuth signIn first
-      const result = await signIn('credentials', {
+      // Direct backend API call
+      const response = await authAPI.login({
         username: formData.username,
         password: formData.password,
-        redirect: false,
       });
 
-      if (result?.error) {
-        // If NextAuth fails, try direct API call
-        const response = await authAPI.login({
-          username: formData.username,
-          password: formData.password,
-        });
+      // Set token in cookies
+      setTokenInCookies(response.access_token);
 
-        // Set token in cookies
-        setTokenInCookies(response.access_token);
-
-        // Redirect to dashboard
-        router.push('/dashboard');
-      } else if (result?.ok) {
-        // NextAuth succeeded
-        router.push('/dashboard');
-      }
+      // Redirect to dashboard
+      router.push('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
       setError(error.response?.data?.detail || 'Login failed. Please try again.');
@@ -72,7 +59,12 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await signIn(provider, { callbackUrl: '/dashboard' });
+      // Redirect to backend OAuth endpoints
+      const oauthUrl = provider === 'google' 
+        ? authAPI.initiateGoogleOAuth()
+        : authAPI.initiateGithubOAuth();
+      
+      window.location.href = oauthUrl;
     } catch (error: any) {
       console.error(`${provider} login error:`, error);
       setError(`${provider} login failed. Please try again.`);
@@ -157,7 +149,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* OAuth buttons temporarily disabled
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <Separator className="w-full" />
@@ -207,7 +198,6 @@ export default function LoginPage() {
               GitHub
             </Button>
           </div>
-          */}
 
           <div className="text-center text-sm">
             <Link

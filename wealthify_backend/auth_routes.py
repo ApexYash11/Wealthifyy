@@ -71,14 +71,13 @@ def get_password_hash(password: str):
 def authenticate_user(db: Session, username: str, password: str):
     """Authenticate user with username/password"""
     if not DATABASE_AVAILABLE:
-        # Mock authentication for testing
-        if username == "test" and password == "test":
-            mock_user = User()
-            mock_user.id = 1
-            mock_user.username = "test"
-            mock_user.email = "test@example.com"
-            return mock_user
-        return None
+        # Mock authentication for testing - accept any credentials
+        mock_user = User()
+        mock_user.id = 1
+        mock_user.username = username
+        mock_user.email = f"{username}@example.com"
+        mock_user.name = username.title()
+        return mock_user
     
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -159,13 +158,24 @@ def get_current_user_any(
 
 # Auth Routes
 
+def get_db_optional():
+    """Get database session, but don't fail if database is unavailable"""
+    try:
+        from model import get_db, DATABASE_AVAILABLE
+        if DATABASE_AVAILABLE:
+            return next(get_db())
+        else:
+            return None
+    except:
+        return None
+
 @auth_router.post("/login", response_model=LoginResponse)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
     response: Response = None
 ):
     """Traditional username/password login"""
+    db = get_db_optional()
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -208,18 +218,18 @@ async def login(
 @auth_router.post("/register", response_model=LoginResponse)
 async def register(
     user_data: UserCreate,
-    db: Session = Depends(get_db),
     response: Response = None
 ):
     """Traditional user registration"""
+    db = get_db_optional()
     if not DATABASE_AVAILABLE:
         # Mock registration for testing
         mock_user = User()
         mock_user.id = 1
         mock_user.username = user_data.username
         mock_user.email = user_data.email
-        mock_user.name = user_data.name
-        mock_user.password = get_password_hash(user_data.password)
+        mock_user.name = user_data.name or user_data.username
+        mock_user.password_hash = get_password_hash(user_data.password)
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
