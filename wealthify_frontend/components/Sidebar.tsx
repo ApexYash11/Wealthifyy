@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, FileText, BarChart2, Brain, TrendingUp, Settings, LogOut, User, Sparkles, Menu, X } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import authAPI from '@/lib/auth-api';
 
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: Home, emoji: '🏠' },
@@ -18,11 +19,34 @@ const navLinks = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
-  const handleLogout = () => {
-    // Clear any frontend cookies and redirect to backend logout
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const user = await authAPI.getCurrentUser();
+        if (!mounted) return;
+        if (user?.user_metadata?.name) setDisplayName(user.user_metadata.name as string);
+        else if (user?.email) setDisplayName(user.email);
+      } catch (e) {
+        console.error('Failed to load current user for sidebar:', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const handleLogout = async () => {
+    // Call Supabase signOut to clear session
+    try {
+      await authAPI.logout();
+    } catch (e) {
+      console.error('Supabase logout failed:', e);
+    }
+    // Clear any frontend cookies
     document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/logout`;
+    // Redirect to login page (or home)
+    window.location.href = '/login';
   };
 
   // Sidebar content
@@ -36,8 +60,8 @@ export default function Sidebar() {
         <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-700 to-purple-400 flex items-center justify-center text-white text-2xl font-bold mb-2">
           <User className="w-8 h-8" />
         </div>
-        <div className="text-lg font-semibold">User</div>
-        <div className="text-xs text-purple-200 mb-4">Premium Member</div>
+  <div className="text-lg font-semibold">{displayName ?? 'User'}</div>
+  <div className="text-xs text-purple-200 mb-4">Premium Member</div>
       </div>
       <nav className="flex-1 px-4">
         <ul className="space-y-2">

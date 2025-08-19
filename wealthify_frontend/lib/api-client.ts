@@ -8,7 +8,10 @@ class ApiClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  // Base host (e.g. http://localhost:8000). API prefix is added here to ensure
+  // all requests target the backend's v1 routes (e.g. /api/v1/transactions).
+  const host = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  this.baseUrl = `${host.replace(/\/$/, '')}/api/v1`;
   }
 
   private getAuthHeaders(): Record<string, string> {

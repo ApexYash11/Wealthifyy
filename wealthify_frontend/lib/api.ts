@@ -1,53 +1,81 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 import axios from 'axios';
 
 // Use environment variables with fallbacks
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '')}/api/v1`;
 
 // Create axios instance with better error handling
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
+  // Allow cookies (session cookie set by backend) to be sent with requests
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token from cookies
+
+// Attach Supabase access token to every request
 apiClient.interceptors.request.use(
-  (config) => {
-    if (typeof window !== 'undefined') {
-      // Get token from cookies (set by backend)
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth_token='))
-        ?.split('=')[1];
-      
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data?.session?.access_token;
+      if (accessToken) {
+        (config.headers as any).Authorization = `Bearer ${accessToken}`;
       }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('apiClient: failed to attach supabase token', e);
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor for better error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', {
-      message: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-      url: error.config?.url,
-    });
+    try {
+      const errPayload: any = {
+        message: error?.message || 'Unknown Axios error',
+        status: error?.response?.status ?? null,
+        responseData: error?.response?.data ?? null,
+        request: {
+          url: error?.config?.url ?? null,
+          method: error?.config?.method ?? null,
+          headers: error?.config?.headers ?? null,
+          params: error?.config?.params ?? null,
+          data: error?.config?.data ?? null,
+        },
+        stack: error?.stack ?? null,
+        original: error,
+      };
+
+      // Log detailed structured info to console for easier debugging
+      // eslint-disable-next-line no-console
+      console.error('API Error:', errPayload);
+    } catch (logErr) {
+      // Best-effort minimal logging
+      // eslint-disable-next-line no-console
+      console.error('API Error (logging failure):', logErr, 'original error:', error);
+    }
+
+    // Propagate the original error so callers can read response/status when needed
     return Promise.reject(error);
   }
 );
 
 export default apiClient;
+
 
 export interface ExpenseCategory {
   food: number;
@@ -77,12 +105,12 @@ export interface PredictionRequest {
 }
 
 export interface TransactionRequest {
-  user_id: number;
   type: string;
   description: string;
   amount: number;
   category: string;
-  date: string;
+  date: string; // ISO string
+  notes?: string;
 }
 
 export const expenseAPI = {
@@ -96,9 +124,8 @@ export const expenseAPI = {
 };
 
 export const transactionAPI = {
-  getTransactions: (userId: number, limit?: number) => 
-    apiClient.get(`/transactions/${userId}${limit ? `?limit=${limit}` : ''}`),
-  addTransaction: (data: TransactionRequest) => apiClient.post('/transactions', data),
+  getTransactions: () => apiClient.get('/transactions/'),
+  addTransaction: (data: TransactionRequest) => apiClient.post('/transactions/', data),
 };
 
 // Savings goal management

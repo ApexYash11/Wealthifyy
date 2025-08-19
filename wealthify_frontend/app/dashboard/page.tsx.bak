@@ -1,0 +1,453 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { dashboardAPI } from '@/lib/dashboard-api';
+import { cn } from '@/lib/utils';
+
+interface DashboardData {
+  totalIncome: number;
+  totalExpenses: number;
+  currentSavings: number;
+  savingsGoal: number;
+  monthlyBudget: number;
+  budgetUsed: number;
+  recentTransactions: Array<{
+    id: number;
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    date: string;
+  }>;
+  expenseBreakdown: {
+    category: string;
+    amount: number;
+    percentage: number;
+  }[];
+}
+
+export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [showBalance, setShowBalance] = useState(true);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [newGoal, setNewGoal] = useState('');
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [retryCount]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await dashboardAPI.getDashboardData();
+      setData(data);
+      
+      // Clear any previous error states
+      if (error) {
+        toast({
+          title: 'Success',
+          description: 'Dashboard data loaded successfully',
+        });
+        setError(null);
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'An unexpected error occurred';
+      const isAuthError = errorMessage.includes('sign in');
+      
+      console.error('Error fetching dashboard data:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        originalError: (error as any).originalError
+      });
+
+      setError(errorMessage);
+      
+      if (isAuthError) {
+        router.push('/login');
+      }
+      
+      toast({
+        title: isAuthError ? 'Authentication Required' : 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+        action: !isAuthError ? (
+          <Button variant="outline" size="sm" onClick={() => setRetryCount(prev => prev + 1)}>
+            Retry
+          </Button>
+        ) : undefined
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateSavingsGoal = async () => {
+    if (!newGoal || isNaN(Number(newGoal))) return;
+
+    try {
+      await dashboardAPI.updateSavingsGoal(Number(newGoal));
+      // Refresh dashboard data to get updated values
+      const newData = await dashboardAPI.getDashboardData();
+      setData(newData);
+      setEditingGoal(false);
+      setNewGoal('');
+      toast({
+        title: 'Success',
+        description: 'Savings goal updated successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update savings goal',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg text-gray-600 dark:text-gray-400">Loading your financial dashboard...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">This may take a few moments</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4 max-w-md mx-auto p-6">
+          <div className="text-red-600 dark:text-red-400 text-6xl mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              className="w-16 h-16 mx-auto"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            Unable to load dashboard
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">{error}</p>
+          <div className="flex justify-center space-x-4 mt-6">
+            <Button onClick={() => setRetryCount(prev => prev + 1)}>
+              Try Again
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/')}>
+              Go Home
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center space-y-4">
+          <div className="text-gray-400 dark:text-gray-600 text-6xl mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              className="w-16 h-16 mx-auto"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+              />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            No Data Available
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Your financial data will appear here once you start tracking your expenses.
+          </p>
+          <Button onClick={() => router.push('/add-expense')} className="mt-4">
+            Add Your First Expense
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const savingsProgress = data.savingsGoal > 0 ? (data.currentSavings / data.savingsGoal) * 100 : 0;
+  const budgetProgress = data.monthlyBudget > 0 ? (data.budgetUsed / data.monthlyBudget) * 100 : 0;
+  const netIncome = data.totalIncome - data.totalExpenses;
+
+  return (
+    <div className="flex h-screen bg-[#0a0014]">
+      {/* Sidebar */}
+      <div className="w-64 bg-[#2E1065] text-white p-6">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1">Wealthify</h1>
+        </div>
+        
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-20 h-20 rounded-full bg-purple-500 flex items-center justify-center mb-4">
+            <span className="text-2xl">YM</span>
+          </div>
+          <h2 className="text-xl font-semibold">Yash Maheshwari</h2>
+          <p className="text-sm text-purple-300">Premium Member</p>
+        </div>
+
+        <nav className="space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full justify-start bg-purple-700 text-white hover:bg-purple-600"
+            onClick={() => router.push('/dashboard')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Dashboard
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-300 hover:bg-purple-600"
+            onClick={() => router.push('/transactions')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Transactions
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-300 hover:bg-purple-600"
+            onClick={() => router.push('/predictions')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Predictions
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-300 hover:bg-purple-600"
+            onClick={() => router.push('/insights')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Insights
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-300 hover:bg-purple-600"
+            onClick={() => router.push('/investments')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Investments
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-gray-300 hover:bg-purple-600"
+            onClick={() => router.push('/settings')}
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Settings
+          </Button>
+        </nav>
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-gray-300 hover:bg-purple-600 mt-auto"
+          onClick={() => router.push('/logout')}
+        >
+          <svg className="w-5 h-5 mr-3" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Logout
+        </Button>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white mb-2">
+              Welcome back, <span className="text-purple-500">Yash Maheshwari</span>
+            </h1>
+            <p className="text-gray-400">
+              Here's your financial overview
+            </p>
+          </div>
+          <Button 
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+            onClick={() => router.push('/add-transaction')}
+          >
+            + Add Transaction
+          </Button>
+        </div>
+
+        {/* Main Stats */}
+        <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="bg-[#1a1a2e] rounded-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-gray-400">Total Balance</h3>
+              <svg className="w-6 h-6 text-purple-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">₹44,000</div>
+            <div className="text-green-500 text-sm">+598.3% from last month</div>
+          </div>
+
+          <div className="bg-[#1a1a2e] rounded-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-gray-400">Monthly Income</h3>
+              <svg className="w-6 h-6 text-green-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">₹55,500</div>
+            <div className="text-gray-400 text-sm">Last updated today</div>
+          </div>
+
+          <div className="bg-[#1a1a2e] rounded-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-gray-400">Monthly Expenses</h3>
+              <svg className="w-6 h-6 text-red-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+              </svg>
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">₹11,500</div>
+            <div className="text-red-500 text-sm">+32.2% from last month</div>
+          </div>
+
+          <div className="bg-[#1a1a2e] rounded-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-gray-400">Savings Goal</h3>
+              <div className="flex space-x-2">
+                <button className="text-purple-500 hover:text-purple-400">
+                  <svg className="w-6 h-6" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+                <button className="text-purple-500 hover:text-purple-400" onClick={() => setEditingGoal(true)}>
+                  <svg className="w-6 h-6" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-white mb-2">₹50,000</div>
+            <div className="relative pt-1">
+              <div className="overflow-hidden h-2 text-xs flex rounded bg-purple-200">
+                <div
+                  style={{ width: "40%" }}
+                  className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-purple-500"
+                />
+              </div>
+              <div className="text-gray-400 text-sm mt-1">₹20,000 to goal</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Monthly Spending Breakdown */}
+        <div className="bg-[#1a1a2e] rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-4">Monthly Spending Breakdown</h2>
+          <p className="text-gray-400 mb-6">Your spending categorized by type</p>
+          
+          <div className="space-y-6">
+            <div className="space-y-4">
+              {/* Education */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-purple-400">Education</span>
+                  <span className="text-white">₹500</span>
+                </div>
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-800">
+                    <div style={{ width: "4.3%" }} className="bg-purple-500"></div>
+                  </div>
+                  <span className="text-gray-500 text-xs mt-1">4.3%</span>
+                </div>
+              </div>
+
+              {/* Entertainment */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-blue-400">Entertainment</span>
+                  <span className="text-white">₹3800</span>
+                </div>
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-800">
+                    <div style={{ width: "33%" }} className="bg-blue-500"></div>
+                  </div>
+                  <span className="text-gray-500 text-xs mt-1">33%</span>
+                </div>
+              </div>
+
+              {/* Food */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-green-400">Food</span>
+                  <span className="text-white">₹2700</span>
+                </div>
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-800">
+                    <div style={{ width: "23.5%" }} className="bg-green-500"></div>
+                  </div>
+                  <span className="text-gray-500 text-xs mt-1">23.5%</span>
+                </div>
+              </div>
+
+              {/* Healthcare */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-yellow-400">Healthcare</span>
+                  <span className="text-white">₹1000</span>
+                </div>
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-800">
+                    <div style={{ width: "8.7%" }} className="bg-yellow-500"></div>
+                  </div>
+                  <span className="text-gray-500 text-xs mt-1">8.7%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+      </div>
+    </div>
+  );
+}

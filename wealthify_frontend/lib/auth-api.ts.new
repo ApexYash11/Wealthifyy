@@ -1,0 +1,138 @@
+import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Types
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name?: string;
+}
+
+export interface AuthResponse {
+  session: any;
+  user: User | null;
+  error?: Error;
+}
+
+// Authentication API functions
+export const authAPI = {
+  // Email & Password Login
+  login: async (credentials: LoginRequest): Promise<AuthResponse> => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      if (error) throw error;
+      
+      return {
+        session: data.session,
+        user: data.user,
+      };
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+
+  // Email & Password Registration
+  register: async (userData: RegisterRequest): Promise<AuthResponse> => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            name: userData.name,
+          },
+        },
+      });
+
+      if (error) throw error;
+      
+      return {
+        session: data.session,
+        user: data.user,
+      };
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  },
+
+  // OAuth Sign In with Google
+  signInWithGoogle: async (): Promise<void> => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      throw error;
+    }
+  },
+
+  // Sign Out
+  logout: async (): Promise<void> => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw error;
+    }
+  },
+
+  // Get current session
+  getSession: async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      return session;
+    } catch (error) {
+      console.error('Get session error:', error);
+      throw error;
+    }
+  },
+
+  // Get current user
+  getCurrentUser: async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return user;
+    } catch (error) {
+      console.error('Get user error:', error);
+      throw error;
+    }
+  },
+};
+
+// Helper function to check if user is authenticated
+export const isAuthenticated = async (): Promise<boolean> => {
+  try {
+    const session = await authAPI.getSession();
+    return !!session;
+  } catch (error) {
+    console.error('Authentication check failed:', error);
+    return false;
+  }
+};
+
+export default authAPI;

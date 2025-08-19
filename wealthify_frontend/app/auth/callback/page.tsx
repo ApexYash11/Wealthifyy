@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { setTokenInCookies } from '@/lib/auth-api';
+import { createClient } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -14,32 +18,27 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get URL parameters
-        const code = searchParams.get('code');
-        const error = searchParams.get('error');
-        const errorDescription = searchParams.get('error_description');
+        // Get the session from Supabase
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           setStatus('error');
-          setMessage(errorDescription || `Authentication error: ${error}`);
+          setMessage(error.message);
           return;
         }
 
-        if (!code) {
+        if (!session) {
           setStatus('error');
-          setMessage('No authorization code received');
+          setMessage('No session found');
           return;
         }
 
-        // The backend should handle the OAuth callback
-        // For now, just redirect to dashboard
-        // In a full implementation, you'd call your backend's callback endpoint
         setStatus('success');
         setMessage('Authentication successful! Redirecting...');
         
         setTimeout(() => {
           router.push('/dashboard');
-        }, 2000);
+        }, 1000);
 
       } catch (error) {
         console.error('OAuth callback error:', error);
@@ -84,5 +83,6 @@ export default function AuthCallbackPage() {
     </div>
   );
 }
+
 
 

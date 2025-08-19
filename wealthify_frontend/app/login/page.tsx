@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { authAPI, setTokenInCookies } from '@/lib/auth-api';
+import { authAPI } from '@/lib/auth-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
   });
 
@@ -35,20 +35,19 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Direct backend API call
       const response = await authAPI.login({
-        username: formData.username,
+        email: formData.email,
         password: formData.password,
       });
 
-      // Set token in cookies
-      setTokenInCookies(response.access_token);
+      if (response.error) throw response.error;
+      if (!response.session) throw new Error('No session returned');
 
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
-      setError(error.response?.data?.detail || 'Login failed. Please try again.');
+      setError(error.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -59,12 +58,10 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Redirect to backend OAuth endpoints
-      const oauthUrl = provider === 'google' 
-        ? authAPI.initiateGoogleOAuth()
-        : authAPI.initiateGithubOAuth();
-      
-      window.location.href = oauthUrl;
+      if (provider === 'google') {
+        await authAPI.signInWithGoogle();
+      }
+      // Add GitHub support later if needed
     } catch (error: any) {
       console.error(`${provider} login error:`, error);
       setError(`${provider} login failed. Please try again.`);
@@ -90,16 +87,17 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username or Email</Label>
+              <Label htmlFor="email">Email Address</Label>
               <Input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="Enter your username or email"
-                value={formData.username}
+                id="email"
+                name="email"
+                type="email"
+                placeholder="Enter your email address"
+                value={formData.email}
                 onChange={handleInputChange}
                 required
                 disabled={isLoading}
+                autoComplete="email"
               />
             </div>
 

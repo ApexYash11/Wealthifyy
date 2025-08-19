@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
+// This is your root route (/) - Landing page
 
 export default function PurpleLanding() {
   return (

@@ -1,0 +1,440 @@
+import type { DashboardData } from './types';
+import { supabase } from './supabaseClient';
+
+// Import types from types.ts
+import type { 
+  User,
+  Asset,
+  Transaction,
+  Expense,
+  PortfolioSnapshot,
+  Feedback,
+  DashboardResponse
+} from './types';
+
+// Initialize financial data for new user
+const initializeFinancialData = async (userId: string): Promise<void> => {
+  const { data: existingData } = await supabase
+    .from('financial_data')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!existingData) {
+    await supabase.from('financial_data').insert([{
+      user_id: userId,
+      total_income: 0,
+      total_expenses: 0,
+      current_savings: 0,
+      savings_goal: 0,
+      monthly_budget: 0,
+      budget_used: 0
+    }]);
+  }
+};
+
+export const dashboardAPI = {
+  addTransaction: async (data: {
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    category: string;
+    date?: string;
+  }): Promise<Transaction> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { data: transaction, error } = await supabase
+      .from('transactions')
+      .insert([{
+        user_id: user.id,
+        description: data.description,
+        amount: data.amount,
+        type: data.type,
+        category: data.category,
+        date: data.date || new Date().toISOString(),
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Get current financial data
+    const { data: currentData } = await supabase
+      .from('financial_data')
+      .select('total_income, total_expenses, budget_used')
+      .eq('user_id', user.id)
+      .single();
+
+    // Update financial data
+    await supabase.from('financial_data')
+      .update({
+        total_income: data.type === 'income' ? (currentData?.total_income || 0) + data.amount : undefined,
+        total_expenses: data.type === 'expense' ? (currentData?.total_expenses || 0) + data.amount : undefined,
+        budget_used: data.type === 'expense' ? (currentData?.budget_used || 0) + data.amount : undefined,
+      })
+      .eq('user_id', user.id);
+
+    return transaction;
+  },
+
+  // Get transactions with pagination
+  getTransactions: async (params: {
+    page?: number;
+    limit?: number;
+    type?: 'income' | 'expense';
+    startDate?: string;
+    endDate?: string;
+  } = {}) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const {
+      page = 1,
+      limit = 10,
+      type,
+      startDate,
+      endDate,
+    } = params;
+
+    let query = supabase
+      .from('transactions')
+      .select('*', { count: 'exact' })
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+
+    if (type) {
+      query = query.eq('type', type);
+    }
+
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    const { data, error, count } = await query
+      .range((page - 1) * limit, page * limit - 1);
+
+    if (error) throw error;
+
+    return {
+      transactions: data,
+      total: count || 0,
+      page,
+      limit,
+    };
+  },
+
+  // Update monthly budget
+  updateMonthlyBudget: async (budget: number): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { error } = await supabase
+      .from('financial_data')
+      .update({ monthly_budget: budget })
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+  },
+
+  getDashboardData: async (): Promise<DashboardData> => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Error getting user:', userError);
+        throw userError;
+      }
+      
+      if (!user) {
+        console.error('No user found');
+        throw new Error('No user found');
+      }
+
+      // Ensure user has financial data
+      await initializeFinancialData(user.id);
+
+      // Get user's financial data
+      const { data: financialData, error: financialError } = await supabase
+        .from('financial_data')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (financialError) {
+        console.error('Error fetching financial data:', financialError);
+        throw financialError;
+      }
+      
+      if (!financialData) {
+        console.error('No financial data found');
+        throw new Error('No financial data found');
+      }
+
+    // Get recent transactions
+    const { data: transactions, error: transactionsError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .limit(5);
+
+    if (transactionsError) {
+      console.error('Error fetching transactions:', transactionsError);
+    }
+
+    // Get expense breakdown
+    const { data: expenses, error: expensesError } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (expensesError) {
+      console.error('Error fetching expenses:', expensesError);
+    }
+
+    // Calculate expense breakdown
+    const expensesByCategory = (expenses || []).reduce((acc: Record<string, number>, expense: any) => {
+      if (!acc[expense.category]) {
+        acc[expense.category] = 0;
+      }
+      acc[expense.category] += Number(expense.amount);
+      return acc;
+    }, {});
+
+    const totalExpenses = Object.values(expensesByCategory).reduce((a: number, b: number) => a + b, 0);
+
+    const expenseBreakdown = Object.entries(expensesByCategory).map(([category, amount]: [string, number]) => ({
+      category,
+      amount,
+      percentage: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0
+    }));
+
+    return {
+      totalIncome: financialData?.total_income || 0,
+      totalExpenses: financialData?.total_expenses || 0,
+      currentSavings: financialData?.current_savings || 0,
+      savingsGoal: financialData?.savings_goal || 0,
+      monthlyBudget: financialData?.monthly_budget || 0,
+      budgetUsed: financialData?.budget_used || 0,
+      recentTransactions: transactions?.map((t: any) => ({
+        id: t.id,
+        description: t.description,
+        amount: t.amount,
+        type: t.type,
+        date: t.date
+      })) || [],
+      expenseBreakdown
+    }
+  },
+
+  updateSavingsGoal: async (newGoal: number): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { error } = await supabase
+      .from('financial_data')
+      .update({ savings_goal: newGoal })
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+  },
+
+  // Add a new expense entry
+  addExpense: async (expenseData: {
+    rent?: number;
+    loan_repayment?: number;
+    insurance?: number;
+    groceries?: number;
+    transport?: number;
+    eating_out?: number;
+    entertainment?: number;
+    utilities?: number;
+    healthcare?: number;
+    education?: number;
+    miscellaneous?: number;
+  }): Promise<Expense> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const month = new Date().toISOString().slice(0, 7); // Format: YYYY-MM
+    const total_expense = Object.values(expenseData).reduce((a, b) => (a || 0) + (b || 0), 0);
+
+    const { data: expense, error } = await supabase
+      .from('expenses')
+      .insert([{
+        user_id: user.id,
+        month,
+        ...expenseData,
+        total_expense
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update financial data
+    await supabase
+      .from('financial_data')
+      .update({
+        total_expenses: supabase.rpc('increment', { amount: total_expense }),
+        budget_used: supabase.rpc('increment', { amount: total_expense })
+      })
+      .eq('user_id', user.id);
+
+    return expense;
+  },
+
+  // Get monthly expenses
+  getMonthlyExpenses: async (month?: string): Promise<Expense> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('month', targetMonth)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+
+    return data || {
+      rent: 0,
+      loan_repayment: 0,
+      insurance: 0,
+      groceries: 0,
+      transport: 0,
+      eating_out: 0,
+      entertainment: 0,
+      utilities: 0,
+      healthcare: 0,
+      education: 0,
+      miscellaneous: 0,
+      total_expense: 0,
+      month: targetMonth,
+      user_id: user.id
+    };
+  },
+
+  // Update recurring transaction
+  updateRecurringTransaction: async (transactionId: number, recurring: boolean): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { error } = await supabase
+      .from('transactions')
+      .update({ recurring })
+      .eq('id', transactionId)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+  },
+
+  // Delete transaction
+  deleteTransaction: async (transactionId: number): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    // First get the transaction to know its amount and type
+    const { data: transaction, error: getError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (getError) throw getError;
+
+    // Delete the transaction
+    const { error: deleteError } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId)
+      .eq('user_id', user.id);
+
+    if (deleteError) throw deleteError;
+
+    // Update financial data
+    if (transaction) {
+      await supabase
+        .from('financial_data')
+        .update({
+          total_income: transaction.type === 'income' 
+            ? supabase.rpc('decrement', { amount: transaction.amount })
+            : undefined,
+          total_expenses: transaction.type === 'expense'
+            ? supabase.rpc('decrement', { amount: transaction.amount })
+            : undefined,
+          budget_used: transaction.type === 'expense'
+            ? supabase.rpc('decrement', { amount: transaction.amount })
+            : undefined
+        })
+        .eq('user_id', user.id);
+    }
+  },
+
+  // Get transaction statistics
+  getTransactionStats: async (params: {
+    startDate?: string;
+    endDate?: string;
+  } = {}): Promise<{
+    totalIncome: number;
+    totalExpenses: number;
+    netIncome: number;
+    categorySummary: Record<string, number>;
+  }> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('No user found');
+
+    const { startDate, endDate } = params;
+    let query = supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const stats = (data || []).reduce((acc: any, transaction: Transaction) => {
+      if (transaction.type === 'income') {
+        acc.totalIncome += transaction.amount;
+      } else {
+        acc.totalExpenses += transaction.amount;
+      }
+
+      if (!acc.categorySummary[transaction.category]) {
+        acc.categorySummary[transaction.category] = 0;
+      }
+      acc.categorySummary[transaction.category] += transaction.amount;
+
+      return acc;
+    }, {
+      totalIncome: 0,
+      totalExpenses: 0,
+      categorySummary: {}
+    });
+
+    return {
+      ...stats,
+      netIncome: stats.totalIncome - stats.totalExpenses
+    };
+  }
+};
+
+export default dashboardAPI;

@@ -17,9 +17,12 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { transactionAPI } from "@/lib/api"
 
 export type TransactionType = "income" | "expense"
 
+
+// Only used for UI, not for backend
 export interface Transaction {
   id: number
   type: TransactionType
@@ -34,7 +37,7 @@ export interface Transaction {
 interface AddTransactionModalProps {
   isOpen: boolean
   onClose: () => void
-  onAddTransaction: (transaction: Transaction) => void
+  onSuccess?: () => void // Notify parent to refresh data
 }
 
 const categoryIcons: Record<string, string> = {
@@ -54,7 +57,7 @@ const categoryIcons: Record<string, string> = {
   Other: "📋",
 }
 
-export default function AddTransactionModal({ isOpen, onClose, onAddTransaction }: AddTransactionModalProps) {
+export default function AddTransactionModal({ isOpen, onClose, onSuccess }: AddTransactionModalProps) {
   const { toast } = useToast()
   const [type, setType] = useState<TransactionType>("expense")
   const [description, setDescription] = useState("")
@@ -62,6 +65,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
   const [category, setCategory] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [recurring, setRecurring] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const incomeCategories = ["Salary", "Freelance", "Investment", "Gift", "Other"]
   const expenseCategories = [
@@ -77,7 +81,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
     "Other",
   ]
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!description || !amount || !category) {
@@ -89,25 +93,31 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
       return
     }
 
-    const newTransaction: Transaction = {
-      id: Date.now(),
-      type,
-      description,
-      amount: Number.parseFloat(amount),
-      date,
-      category,
-      icon: categoryIcons[category] || "📋",
-      recurring,
+    setSubmitting(true)
+    try {
+      await transactionAPI.addTransaction({
+        type,
+        description,
+        amount: Number.parseFloat(amount),
+        date,
+        category,
+      })
+      resetForm()
+      onClose()
+      if (onSuccess) onSuccess()
+      toast({
+        title: "Transaction added",
+        description: `${type === "income" ? "Income" : "Expense"} of ₹${amount} has been added.`,
+      })
+    } catch (err: any) {
+      toast({
+        title: "Error adding transaction",
+        description: err?.response?.data?.detail || err.message || "Failed to add transaction.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
     }
-
-    onAddTransaction(newTransaction)
-    resetForm()
-    onClose()
-
-    toast({
-      title: "Transaction added",
-      description: `${type === "income" ? "Income" : "Expense"} of ₹${amount} has been added.`,
-    })
   }
 
   const resetForm = () => {
@@ -218,11 +228,12 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction 
                 resetForm()
                 onClose()
               }}
+              disabled={submitting}
             >
               Cancel
             </Button>
-            <Button type="submit" className="bg-gradient-to-r from-primary to-purple-600">
-              Add Transaction
+            <Button type="submit" className="bg-gradient-to-r from-primary to-purple-600" disabled={submitting}>
+              {submitting ? "Adding..." : "Add Transaction"}
             </Button>
           </DialogFooter>
         </form>

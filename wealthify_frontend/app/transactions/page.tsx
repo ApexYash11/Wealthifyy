@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, TrendingDown, Plus, Search, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Plus, Search, Repeat, BarChart2, List, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { transactionAPI } from '@/lib/api';
 import AddTransactionModal from '@/components/add-transaction-modal';
@@ -19,14 +19,16 @@ interface Transaction {
   type: 'income' | 'expense';
   category: string;
   date: string;
+  recurring?: boolean;
 }
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense' | 'charts'>('all');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [showRecurring, setShowRecurring] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const { toast } = useToast();
 
@@ -37,8 +39,8 @@ export default function TransactionsPage() {
   const fetchTransactions = async () => {
     try {
       // The backend will identify the user from the auth token
-      const response = await transactionAPI.getTransactions(1, 50); // Placeholder user ID
-      setTransactions(response.data);
+      const response = await transactionAPI.getTransactions();
+      setTransactions(response.transactions);
     } catch (error) {
       console.error('Error fetching transactions:', error);
       toast({
@@ -51,47 +53,25 @@ export default function TransactionsPage() {
     }
   };
 
-  const handleAddTransaction = async (transaction: any) => {
-    try {
-      await transactionAPI.addTransaction({
-        ...transaction,
-        user_id: 1, // Placeholder user ID
-      });
-      
-      toast({
-        title: 'Success',
-        description: 'Transaction added successfully',
-      });
-      
-      fetchTransactions(); // Refresh the list
-      setIsAddModalOpen(false);
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to add transaction',
-        variant: 'destructive',
-      });
-    }
-  };
+  // Remove handleAddTransaction, as AddTransactionModal handles add and refresh
 
   const filteredTransactions = transactions.filter(transaction => {
     const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'all' || transaction.type === filterType;
+    const matchesType = filterType === 'all' || filterType === 'charts' ? true : transaction.type === filterType;
     const matchesCategory = filterCategory === 'all' || transaction.category === filterCategory;
-    
-    return matchesSearch && matchesType && matchesCategory;
+    const matchesRecurring = !showRecurring || !!transaction.recurring;
+    return matchesSearch && matchesType && matchesCategory && matchesRecurring;
   });
 
-  const totalIncome = filteredTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpenses = filteredTransactions
+  const totalSpent = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const netAmount = totalIncome - totalExpenses;
+  const totalRecurring = filteredTransactions
+    .filter(t => !!t.recurring)
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const transactionCount = filteredTransactions.length;
 
   if (loading) {
     return (
@@ -105,176 +85,94 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Transactions
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Track your income and expenses
-            </p>
-          </div>
-          <Button onClick={() => setIsAddModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Transaction
-          </Button>
-        </div>
-
+    <div className="min-h-screen bg-black py-8">
+      <div className="max-w-3xl mx-auto px-4">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Income</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                ${totalIncome.toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                ${totalExpenses.toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Net Amount</CardTitle>
-              <div className={`h-4 w-4 ${netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {netAmount >= 0 ? <TrendingUp /> : <TrendingDown />}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${Math.abs(netAmount).toLocaleString()}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="rounded-xl bg-gradient-to-br from-purple-600 to-purple-400 p-6 text-white flex flex-col items-center justify-center">
+            <div className="text-xs font-semibold uppercase mb-1">Total Spent</div>
+            <div className="text-2xl font-bold">₹{totalSpent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-purple-600 to-purple-400 p-6 text-white flex flex-col items-center justify-center">
+            <div className="text-xs font-semibold uppercase mb-1">Recurring</div>
+            <div className="text-2xl font-bold">₹{totalRecurring.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-purple-600 to-purple-400 p-6 text-white flex flex-col items-center justify-center">
+            <div className="text-xs font-semibold uppercase mb-1">Insights</div>
+            <div className="text-sm font-medium">You have {transactionCount} transactions this month</div>
+          </div>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="search">Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="search"
-                    placeholder="Search transactions..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="type-filter">Type</Label>
-                <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="income">Income</SelectItem>
-                    <SelectItem value="expense">Expense</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="category-filter">Category</Label>
-                <Select value={filterCategory} onValueChange={(value: any) => setFilterCategory(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="food">Food & Dining</SelectItem>
-                    <SelectItem value="transportation">Transportation</SelectItem>
-                    <SelectItem value="entertainment">Entertainment</SelectItem>
-                    <SelectItem value="shopping">Shopping</SelectItem>
-                    <SelectItem value="healthcare">Healthcare</SelectItem>
-                    <SelectItem value="education">Education</SelectItem>
-                    <SelectItem value="housing">Housing</SelectItem>
-                    <SelectItem value="utilities">Utilities</SelectItem>
-                    <SelectItem value="insurance">Insurance</SelectItem>
-                    <SelectItem value="savings">Savings</SelectItem>
-                    <SelectItem value="debt">Debt</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Search and Filters */}
+        <div className="flex flex-col md:flex-row items-center gap-4 mb-6">
+          <div className="flex-1 w-full">
+            <Input
+              placeholder="Search transactions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-zinc-900 text-white border-zinc-700"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant={filterType === 'all' ? 'secondary' : 'ghost'} onClick={() => setFilterType('all')}><List className="h-4 w-4 mr-1" />List</Button>
+            <Button variant={filterType === 'charts' ? 'secondary' : 'ghost'} onClick={() => setFilterType('charts')}><BarChart2 className="h-4 w-4 mr-1" />Charts</Button>
+            <Button variant={showRecurring ? 'secondary' : 'ghost'} onClick={() => setShowRecurring(!showRecurring)}><Repeat className="h-4 w-4 mr-1" />Recurring</Button>
+            <Button variant="ghost"><Download className="h-4 w-4 mr-1" />Export</Button>
+          </div>
+        </div>
 
         {/* Transactions List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Transaction History</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-zinc-900 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">Transactions</h2>
+            <Button variant="outline" className="border-zinc-700 text-white" size="sm">View All →</Button>
+          </div>
+          <div className="space-y-4">
             {filteredTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-600">No transactions found</p>
-              </div>
+              <div className="text-center text-zinc-400 py-8">No transactions found</div>
             ) : (
-              <div className="space-y-4">
-                {filteredTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
-                        {transaction.type === 'income' ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
-                        <p className="text-sm text-muted-foreground">{transaction.date}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {transaction.category}
-                        </Badge>
-                      </div>
+              filteredTransactions.map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between bg-zinc-800 rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-full bg-zinc-700 p-3">
+                      {/* You can add icons based on category here */}
+                      <span className="text-white text-lg">{transaction.category === 'salary' ? '💰' : transaction.category === 'entertainment' ? '🎬' : transaction.category === 'food' ? '🍔' : '🪙'}</span>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                        {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString()}
-                      </p>
-                      <Badge variant={transaction.type === 'income' ? 'default' : 'secondary'}>
-                        {transaction.type}
-                      </Badge>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white text-base">{transaction.description}</span>
+                        {transaction.recurring && <Badge className="bg-purple-700 text-white ml-2">Recurring</Badge>}
+                      </div>
+                      <div className="text-xs text-zinc-400">{transaction.date}</div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="text-right">
+                    <div className={`font-bold text-lg ${transaction.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Add Transaction Modal */}
         <AddTransactionModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
-          onAddTransaction={handleAddTransaction}
+          onSuccess={fetchTransactions}
         />
+        <div className="fixed bottom-8 right-8">
+          <Button
+            className="rounded-full bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg hover:scale-105"
+            size="icon"
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </div>
       </div>
     </div>
   );
-} 
+}
