@@ -38,33 +38,33 @@ const SettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0e1021] flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0e1021] flex flex-col items-center">
+    <div className="min-h-screen bg-background flex flex-col items-center">
       {/* Top Navigation Tabs */}
       <div className="w-full flex justify-center pt-8 pb-4">
         <div className="flex gap-2 md:gap-4 bg-transparent rounded-xl">
           <button
-            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'profile' ? 'bg-[#181c36] text-white border-[#23244a]' : 'bg-transparent text-zinc-300 border-transparent hover:bg-[#181c36] hover:text-white transition'}`}
+            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'profile' ? 'bg-secondary text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent hover:bg-secondary hover:text-foreground transition'}`}
             style={tab === 'profile' ? {boxShadow:'0 2px 8px #0002'} : {}}
             onClick={() => setTab('profile')}
           >
             <span className="inline-block"><svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M5.121 17.804A13.937 13.937 0 0 1 12 16c2.5 0 4.847.655 6.879 1.804M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" strokeLinecap="round" strokeLinejoin="round"/></svg></span> Profile
           </button>
           <button
-            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'security' ? 'bg-[#181c36] text-white border-[#23244a]' : 'bg-transparent text-zinc-300 border-transparent hover:bg-[#181c36] hover:text-white transition'}`}
+            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'security' ? 'bg-secondary text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent hover:bg-secondary hover:text-foreground transition'}`}
             style={tab === 'security' ? {boxShadow:'0 2px 8px #0002'} : {}}
             onClick={() => setTab('security')}
           >
             Privacy &amp; Security
           </button>
           <button
-            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'contact' ? 'bg-[#181c36] text-white border-[#23244a]' : 'bg-transparent text-zinc-300 border-transparent hover:bg-[#181c36] hover:text-white transition'}`}
+            className={`px-6 py-2 rounded-xl font-medium text-base md:text-lg focus:outline-none border-2 shadow-md flex items-center gap-2 ${tab === 'contact' ? 'bg-secondary text-foreground border-border' : 'bg-transparent text-muted-foreground border-transparent hover:bg-secondary hover:text-foreground transition'}`}
             style={tab === 'contact' ? {boxShadow:'0 2px 8px #0002'} : {}}
             onClick={() => setTab('contact')}
           >
@@ -77,22 +77,22 @@ const SettingsPage = () => {
       {tab === 'profile' && (
         <div className="flex flex-col md:flex-row gap-8 w-full max-w-6xl px-4 md:px-0 justify-center items-start mt-4">
           {/* Profile Card */}
-          <div className="flex-1 max-w-xs rounded-2xl bg-[#111426] border border-[#23244a] flex flex-col items-center justify-center p-8 shadow-lg" style={{minWidth:'300px'}}>
-            <div className="rounded-full bg-[#181c36] w-28 h-28 flex items-center justify-center mb-6">
-              <User className="h-16 w-16 text-orange-400" />
+          <div className="flex-1 max-w-xs rounded-2xl bg-card border border-border flex flex-col items-center justify-center p-8 shadow-lg" style={{minWidth:'300px'}}>
+            <div className="rounded-full bg-secondary w-28 h-28 flex items-center justify-center mb-6">
+              <User className="h-16 w-16 text-primary" />
             </div>
-            <div className="text-3xl font-bold text-orange-400 mb-2 text-center">{user?.name}</div>
-            <div className="text-lg text-zinc-200 mb-1 text-center">{user?.email}</div>
-            <div className="text-zinc-400 text-center">Joined {user?.joined}</div>
+            <div className="text-3xl font-bold text-primary mb-2 text-center">{user?.name}</div>
+            <div className="text-lg text-muted-foreground mb-1 text-center">{user?.email}</div>
+            <div className="text-muted-foreground text-center">Joined {user?.joined}</div>
           </div>
           {/* Info Card */}
-          <div className="flex-1 max-w-2xl rounded-2xl bg-[#111426] border border-[#23244a] p-10 shadow-lg flex flex-col justify-center" style={{minWidth:'340px'}}>
-            <div className="text-3xl font-bold text-white mb-6">Profile</div>
-            <div className="text-lg text-zinc-200 mb-6">
+          <div className="flex-1 max-w-2xl rounded-2xl bg-card border border-border p-10 shadow-lg flex flex-col justify-center" style={{minWidth:'340px'}}>
+            <div className="text-3xl font-bold text-foreground mb-6">Profile</div>
+            <div className="text-lg text-muted-foreground mb-6">
               <span className="font-semibold block mb-2">User Info</span>
-              <div className="mb-1">Name: <span className="font-medium text-white">{user?.name}</span></div>
-              <div className="mb-1">Email: <span className="font-medium text-white">{user?.email}</span></div>
-              <div className="mt-2 text-zinc-400">Joined {user?.joined}</div>
+              <div className="mb-1">Name: <span className="font-medium text-foreground">{user?.name}</span></div>
+              <div className="mb-1">Email: <span className="font-medium text-foreground">{user?.email}</span></div>
+              <div className="mt-2 text-muted-foreground">Joined {user?.joined}</div>
             </div>
             <Button
               variant="destructive"
@@ -107,25 +107,25 @@ const SettingsPage = () => {
       )}
 
       {tab === 'security' && (
-        <div className="w-full max-w-2xl mt-8 bg-[#111426] border border-[#23244a] rounded-2xl p-10 shadow-lg flex flex-col items-center">
-          <div className="text-3xl font-bold text-white mb-6">Privacy &amp; Security</div>
-          <div className="text-lg text-zinc-200 mb-6 text-center">Your privacy and data security are our top priorities. Here’s how we keep your information safe:</div>
-          <ul className="list-disc text-zinc-200 text-base pl-6 mb-4 self-start">
+        <div className="w-full max-w-2xl mt-8 bg-card border border-border rounded-2xl p-10 shadow-lg flex flex-col items-center">
+          <div className="text-3xl font-bold text-foreground mb-6">Privacy &amp; Security</div>
+          <div className="text-lg text-muted-foreground mb-6 text-center">Your privacy and data security are our top priorities. Here’s how we keep your information safe:</div>
+          <ul className="list-disc text-muted-foreground text-base pl-6 mb-4 self-start">
             <li className="mb-2">Your financial data is encrypted and securely stored.</li>
             <li className="mb-2">We never share your personal information with third parties.</li>
             <li className="mb-2">All account activity is protected by industry-standard security protocols.</li>
             <li className="mb-2">You have full control over your data and privacy settings.</li>
             <li className="mb-2">Regular security audits keep your information safe.</li>
           </ul>
-          <div className="text-zinc-400 text-sm mt-2 text-center">If you have any security concerns, please contact our support team.</div>
+          <div className="text-muted-foreground text-sm mt-2 text-center">If you have any security concerns, please contact our support team.</div>
         </div>
       )}
 
       {tab === 'contact' && (
-        <div className="w-full max-w-2xl mt-8 bg-[#111426] border border-[#23244a] rounded-2xl p-10 shadow-lg flex flex-col items-center">
-          <div className="text-3xl font-bold text-white mb-6">Contact Us</div>
-          <div className="text-lg text-zinc-200 mb-4 text-center">For any queries, feedback, or support, please contact us at:</div>
-          <div className="text-xl font-semibold text-orange-400 select-all">wealthify.service@gmail.com</div>
+        <div className="w-full max-w-2xl mt-8 bg-card border border-border rounded-2xl p-10 shadow-lg flex flex-col items-center">
+          <div className="text-3xl font-bold text-foreground mb-6">Contact Us</div>
+          <div className="text-lg text-muted-foreground mb-4 text-center">For any queries, feedback, or support, please contact us at:</div>
+          <div className="text-xl font-semibold text-primary select-all">wealthify.service@gmail.com</div>
         </div>
       )}
     </div>
