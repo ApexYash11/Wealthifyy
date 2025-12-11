@@ -1,145 +1,202 @@
 "use client";
 
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Zap } from 'lucide-react';
-import { useFinancialData } from '@/hooks/use-financial-data';
+import { RefreshCw, Zap, TrendingUp, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
+import { useFinancialContext } from '@/context/financial-context';
+import { calculateHealthScore, analyzeTrends, generateSuggestions } from '@/lib/insights-logic';
 
 export default function InsightsPage() {
-  const { data, loading } = useFinancialData();
+  const { transactions, summary, spendingCategories, loading } = useFinancialContext();
 
-  // Category breakdown from real data
-  const categoryBreakdown = data.spendingCategories.map(cat => ({
-    name: cat.category,
-    amount: cat.amount,
-    percent: cat.percentage,
-  }));
+  // Calculate Insights
+  const healthScore = calculateHealthScore(
+    summary.monthlyIncome,
+    summary.monthlyExpenses,
+    summary.savingsGoal,
+    summary.currentSavings
+  );
 
-  // Simple trend detection: recurring = appears >1x, spike = amount > 2x avg
-  const trends: { label: string; type: 'recurring' | 'spike' }[] = [];
-  const descCount: Record<string, number> = {};
-  const descAmount: Record<string, number[]> = {};
-  data.recentTransactions.forEach(tx => {
-    descCount[tx.description] = (descCount[tx.description] || 0) + 1;
-    if (!descAmount[tx.description]) descAmount[tx.description] = [];
-    descAmount[tx.description].push(tx.amount);
-  });
-  Object.keys(descCount).forEach(desc => {
-    if (descCount[desc] > 1) trends.push({ label: desc, type: 'recurring' });
-    const amounts = descAmount[desc];
-    if (amounts.length > 1) {
-      const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-      if (amounts.some(a => a > 2 * avg)) trends.push({ label: desc, type: 'spike' });
-    }
-  });
+  const trends = analyzeTrends(transactions);
+  const suggestions = generateSuggestions(
+    spendingCategories,
+    summary.monthlyIncome,
+    summary.monthlyExpenses
+  );
 
-  // Suggestions based on spending patterns
-  const suggestions: string[] = [];
-  
-  if (categoryBreakdown.length === 0) {
-    suggestions.push('Add transactions to get personalized insights!');
-    suggestions.push('Track your house rent, groceries, and transportation expenses for better insights.');
-    suggestions.push('Consider setting up automatic tracking for recurring expenses.');
-  } else {
-    // Housing suggestions
-    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('rent') && c.percent > 40)) {
-      suggestions.push('Your rent is over 40% of expenses. Consider finding a more affordable place or taking a roommate.');
-    }
-    
-    // Food suggestions
-    if (categoryBreakdown.some(c => (c.name.toLowerCase().includes('food') || c.name.toLowerCase().includes('groceries')) && c.percent > 25)) {
-      suggestions.push('Try meal prepping and cooking at home to save on food costs.');
-    }
-    
-    // Transportation suggestions
-    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('transport') && c.percent > 15)) {
-      suggestions.push('Consider using public transport, metro, or carpooling to reduce transportation costs.');
-    }
-    
-    // Entertainment suggestions
-    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('entertainment') && c.percent > 10)) {
-      suggestions.push('Review your entertainment subscriptions (Netflix, Spotify, etc.) for potential savings.');
-    }
-    
-    // Shopping suggestions
-    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('shopping') && c.percent > 15)) {
-      suggestions.push('Set a monthly shopping budget and stick to it. Consider waiting 24 hours before making non-essential purchases.');
-    }
-    
-    // General financial health suggestions
-    const totalExpensePercent = categoryBreakdown.reduce((sum, cat) => sum + cat.percent, 0);
-    if (totalExpensePercent > 80) {
-      suggestions.push('Your expenses are quite high. Try to aim for the 50/30/20 rule: 50% needs, 30% wants, 20% savings.');
-    }
-    
-    // Positive suggestions
-    if (data.currentSavings > data.monthlyExpenses * 3) {
-      suggestions.push('Great job! You have a good emergency fund. Consider investing in mutual funds or stocks.');
-    } else if (data.currentSavings > 0) {
-      suggestions.push('Keep building your emergency fund. Aim for 3-6 months of expenses as emergency savings.');
-    }
-    
-    // Default helpful suggestions if no specific patterns found
-    if (suggestions.length === 0) {
-      suggestions.push('Consider using a budgeting app to track your expenses better.');
-      suggestions.push('Set up automatic savings to pay yourself first each month.');
-      suggestions.push('Review your subscriptions monthly and cancel unused ones.');
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[#0e1021] py-8">
-      <div className="max-w-3xl mx-auto px-4 flex flex-col gap-6">
-        {/* Category Breakdown */}
-        <div className="rounded-2xl bg-gradient-to-r from-purple-700 to-purple-500 p-6 mb-2">
-          <h2 className="text-xl font-bold text-white mb-4">Spending Breakdown</h2>
-          {categoryBreakdown.length === 0 ? (
-            <div className="text-zinc-200">No data yet.</div>
-          ) : categoryBreakdown.map((cat, idx) => (
-            <div key={cat.name} className="flex items-center justify-between mb-2">
-              <span className="font-medium text-white">{cat.name}</span>
-              <div className="flex-1 mx-4">
-                <Progress value={cat.percent} className="h-2 bg-purple-900" />
+    <div className="space-y-6 p-6 pb-24 md:pb-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Financial Insights</h1>
+        <p className="text-muted-foreground">AI-powered analysis of your financial health.</p>
+      </div>
+
+      {/* Health Score Section */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="col-span-1 bg-gradient-to-br from-purple-900 to-gray-900 border-purple-500/20">
+          <CardHeader>
+            <CardTitle className="text-white">Financial Health Score</CardTitle>
+            <CardDescription className="text-purple-200">Based on your spending & savings</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center py-6">
+            {summary.monthlyIncome === 0 ? (
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="p-4 rounded-full bg-white/10">
+                  <AlertTriangle className="h-8 w-8 text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">Income Missing</p>
+                  <p className="text-sm text-purple-200 mt-1">Add your income to calculate your score.</p>
+                </div>
               </div>
-              <span className="text-white font-semibold">₹{cat.amount.toLocaleString('en-IN')}</span>
-              <span className="ml-2 text-white text-sm">{cat.percent}%</span>
+            ) : (
+              <>
+                <div className="relative flex items-center justify-center w-32 h-32">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="56"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      fill="transparent"
+                      className="text-purple-900/50"
+                    />
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="56"
+                      stroke="currentColor"
+                      strokeWidth="12"
+                      fill="transparent"
+                      strokeDasharray={351.86}
+                      strokeDashoffset={351.86 - (351.86 * healthScore) / 100}
+                      className={`text-purple-500 transition-all duration-1000 ease-out`}
+                    />
+                  </svg>
+                  <span className="absolute text-4xl font-bold text-white">{healthScore}</span>
+                </div>
+                <p className="mt-4 text-sm text-purple-200 text-center">
+                  {healthScore >= 80 ? "Excellent! You're a financial wizard." : 
+                   healthScore >= 50 ? "Good job, but there's room to improve." : 
+                   healthScore > 0 ? "Needs attention. Let's optimize your budget." :
+                   "Expenses exceed income. Time to review!"}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Smart Suggestions */}
+        <Card className="col-span-1 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-yellow-500" />
+              Smart Suggestions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {suggestions.map((suggestion, idx) => (
+                <div key={idx} className="flex items-start gap-4 p-4 rounded-lg bg-secondary/50 border border-border/50">
+                  <div className={`p-2 rounded-full shrink-0 ${
+                    suggestion.type === 'warning' ? 'bg-red-500/10 text-red-500' :
+                    suggestion.type === 'success' ? 'bg-green-500/10 text-green-500' :
+                    'bg-blue-500/10 text-blue-500'
+                  }`}>
+                    {suggestion.type === 'warning' ? <AlertTriangle className="h-5 w-5" /> :
+                     suggestion.type === 'success' ? <CheckCircle className="h-5 w-5" /> :
+                     <Lightbulb className="h-5 w-5" />}
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm">{suggestion.title}</h4>
+                    <p className="text-sm text-muted-foreground mt-1">{suggestion.description}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Trend Detection */}
-        <div className="rounded-2xl bg-gradient-to-r from-purple-700 to-purple-500 p-6 mb-2">
-          <h2 className="text-xl font-bold text-white mb-4">Trend Detection</h2>
-          <div className="flex flex-col gap-2">
-            {trends.length === 0 ? (
-              <div className="text-zinc-200">No trends detected yet.</div>
-            ) : trends.map((trend, idx) => (
-              <div key={trend.label + trend.type} className="flex items-center gap-3">
-                {trend.type === 'recurring' ? (
-                  <RefreshCw className="h-5 w-5 text-blue-200" />
-                ) : (
-                  <Zap className="h-5 w-5 text-orange-300" />
-                )}
-                <span className="font-medium text-white">{trend.label}</span>
-                <Badge className={`ml-2 ${trend.type === 'recurring' ? 'bg-blue-600' : 'bg-orange-600'} text-white`}>{trend.type === 'recurring' ? 'Recurring' : 'Spike'}</Badge>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Spending Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Spending Breakdown</CardTitle>
+            <CardDescription>Where your money went this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {spendingCategories.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No spending data available.</div>
+              ) : spendingCategories.map((cat) => (
+                <div key={cat.category} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                      <span className="font-medium">{cat.category}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-muted-foreground">{cat.percentage.toFixed(1)}%</span>
+                      <span className="font-bold">₹{cat.amount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <Progress value={cat.percentage} className={`h-2 ${cat.color.replace('bg-', 'text-')}`} />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Suggestions */}
-        <div className="rounded-2xl bg-gradient-to-r from-purple-700 to-purple-500 p-6 mb-2">
-          <h2 className="text-xl font-bold text-white mb-4">Suggestions</h2>
-          <ul className="list-disc pl-6 text-white space-y-2">
-            {suggestions.length === 0 ? (
-              <li>Add more transactions to get personalized suggestions!</li>
-            ) : suggestions.map((s, idx) => (
-              <li key={idx}>{s}</li>
-            ))}
-          </ul>
-        </div>
-
-        {/* No Visuals section as per latest design */}
+        {/* Trend Analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Trend Analysis</CardTitle>
+            <CardDescription>Recurring payments and unusual spikes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {trends.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                  <div className="p-3 bg-secondary rounded-full">
+                    <TrendingUp className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-muted-foreground font-medium">No trends detected yet</p>
+                  <p className="text-xs text-muted-foreground max-w-[250px]">
+                    We need a bit more transaction history to identify recurring payments or spending spikes.
+                  </p>
+                </div>
+              ) : trends.map((trend, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-full ${
+                      trend.type === 'recurring' ? 'bg-blue-500/10 text-blue-500' : 'bg-orange-500/10 text-orange-500'
+                    }`}>
+                      {trend.type === 'recurring' ? <RefreshCw className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{trend.label}</p>
+                      <p className="text-xs text-muted-foreground">{trend.description}</p>
+                    </div>
+                  </div>
+                  <Badge variant={trend.type === 'recurring' ? 'secondary' : 'destructive'}>
+                    {trend.type === 'recurring' ? 'Recurring' : 'Spike'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
