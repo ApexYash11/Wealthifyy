@@ -9,7 +9,7 @@ This project consists of three parts:
 
 - A GitHub account (with this code pushed to a repository).
 - A [Supabase](https://supabase.com/) account.
-- A [Render](https://render.com/) account (for Backend).
+- A [Railway](https://railway.app/) account (for Backend).
 - A [Vercel](https://vercel.com/) account (for Frontend).
 
 ---
@@ -26,61 +26,63 @@ This project consists of three parts:
 
 ---
 
-## Step 2: Backend Deployment (Render)
+## Step 2: Backend Deployment (Railway)
 
-We will deploy the FastAPI backend to Render.
+We will deploy the FastAPI backend to Railway.
 
-1. Log in to [Render Dashboard](https://dashboard.render.com/).
-2. Click **New +** and select **Web Service**.
-3. Connect your GitHub repository.
-4. Configure the service:
-   - **Name**: `wealthify-backend`
-   - **Root Directory**: `wealthify_backend` (Important!)
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-5. Scroll down to **Environment Variables** and add:
-   - `PYTHON_VERSION`: `3.11.0` (or your local version)
-   - `DATABASE_URL`: (Paste your Supabase Connection String from Step 1)
+1. Log in to [Railway Dashboard](https://railway.app/).
+2. Click **New Project** -> **Deploy from GitHub repo**.
+3. Select your repository.
+4. **Important: Configure Monorepo**:
+   - Click on the newly created service card.
+   - Go to **Settings** -> **General**.
+   - Scroll down to **Root Directory** and set it to `/wealthify_backend`.
+   - Railway will now detect the `railway.json` and `start.sh` in that folder.
+5. Click **Variables** and add:
+   - `PORT`: `8000`
+   - `DATABASE_URL`: (Paste your Supabase Connection String)
    - `SUPABASE_URL`: (Your Supabase Project URL)
    - `SUPABASE_ANON_KEY`: (Your Supabase Anon Key)
    - `SECRET_KEY`: (Generate a random string)
-   - `FRONTEND_URL`: (Leave blank for now, update after deploying frontend)
-6. Click **Create Web Service**.
-7. Wait for the deployment to finish. Copy the **Service URL** (e.g., `https://wealthify-backend.onrender.com`).
+   - `FRONTEND_URL`: (Leave blank for now)
+6. **Generate Domain**:
+   - Go to **Settings** -> **Networking**.
+   - Click **Generate Domain** (e.g., `wealthify-backend-production.up.railway.app`).
 
 ---
 
-## Step 3: Frontend Deployment (Vercel)
+## Step 3: Frontend Deployment (Railway or Vercel)
 
-We will deploy the Next.js frontend to Vercel.
+You can deploy the frontend to Vercel (recommended for Next.js) or Railway.
 
-1. Log in to [Vercel Dashboard](https://vercel.com/dashboard).
-2. Click **Add New...** -> **Project**.
-3. Import your GitHub repository.
-4. Configure the project:
-   - **Framework Preset**: Next.js
-   - **Root Directory**: Click `Edit` and select `wealthify_frontend`.
-5. Expand **Environment Variables** and add:
-   - `NEXT_PUBLIC_SUPABASE_URL`: (Your Supabase Project URL)
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: (Your Supabase Anon Key)
-   - `NEXT_PUBLIC_API_URL`: (Paste the Render Backend URL from Step 2, e.g., `https://wealthify-backend.onrender.com/api/v1`)
-     - *Note: Make sure to include `/api/v1` if your backend routes are prefixed.*
-6. Click **Deploy**.
+### Option A: Vercel (Recommended)
+1. Import the repo to Vercel.
+2. Set **Root Directory** to `wealthify_frontend`.
+3. Add Environment Variables (`NEXT_PUBLIC_API_URL`, etc.).
+
+### Option B: Railway
+1. In your Railway project, click **New** -> **GitHub Repo**.
+2. Select the same repository again.
+3. Click on the new service card.
+4. Go to **Settings** -> **General**.
+5. Set **Root Directory** to `/wealthify_frontend`.
+6. Add Environment Variables.
+7. Generate a domain.
 
 ---
 
 ## Step 4: Final Configuration
 
 1. **Update Backend CORS**:
-   - Go back to Render Dashboard -> Environment Variables.
+   - Go back to Railway Dashboard -> Variables.
    - Add/Update `FRONTEND_URL` with your new Vercel URL (e.g., `https://wealthify-frontend.vercel.app`).
    - Add `BACKEND_CORS_ORIGINS` as a JSON string: `["https://wealthify-frontend.vercel.app"]`.
+   - Railway will automatically redeploy when you save variables.
 
 2. **Database Migrations**:
    - If you haven't run migrations on the production DB, you might need to connect to it locally and run Alembic, or use the Supabase SQL editor to set up your schema.
 
 ## Troubleshooting
 
-- **Backend Health Check**: Visit `https://wealthify-backend.onrender.com/health` to see if the API is running.
-- **Docs**: Visit `https://wealthify-backend.onrender.com/docs` for Swagger UI.
+- **Backend Health Check**: Visit `https://<your-railway-url>/health` to see if the API is running.
+- **Docs**: Visit `https://<your-railway-url>/docs` for Swagger UI.
