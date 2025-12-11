@@ -4,6 +4,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/toaster"
 import ClientLayout from "@/components/ClientLayout"
+import AuthTokenCleaner from "@/components/AuthTokenCleaner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className + " bg-gray-50 dark:bg-gray-900 min-h-screen"}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+          <AuthTokenCleaner />
           <ClientLayout>
             {children}
           </ClientLayout>

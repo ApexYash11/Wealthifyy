@@ -3,28 +3,31 @@ from typing import Dict, List
 from datetime import datetime, timedelta
 import uuid
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import get_attribute
 from app.models.asset import Asset
 from app.models.transaction import Transaction
 from app.schemas.portfolio import PortfolioSummary, PortfolioAnalytics, AssetAllocation, PortfolioPerformance, PortfolioSnapshot
 
 class PortfolioService:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_portfolio_summary(self, user_id: str) -> PortfolioSummary:
+    async def get_portfolio_summary(self, user_id: str) -> PortfolioSummary:
         """Get portfolio summary"""
         try:
-            # Get all assets and transactions
-            assets = self.db.query(Asset).filter(Asset.user_id == user_id).all()
+            assets_result = await self.db.execute(select(Asset).filter(Asset.user_id == user_id))
+            assets = assets_result.scalars().all()
             month_ago = datetime.now() - timedelta(days=30)
-            transactions = self.db.query(Transaction).filter(
-                Transaction.user_id == user_id,
-                Transaction.date >= month_ago
-            ).all()
-            
-            # Calculate totals
+            transactions_result = await self.db.execute(
+                select(Transaction).filter(
+                    Transaction.user_id == user_id,
+                    Transaction.date >= month_ago
+                )
+            )
+            transactions = transactions_result.scalars().all()
+
             total_value = Decimal('0')
             total_investments = Decimal('0')
             total_savings = Decimal('0')
@@ -32,34 +35,31 @@ class PortfolioService:
             total_liabilities = Decimal('0')
             monthly_income = Decimal('0')
             monthly_expenses = Decimal('0')
-            
-            # Calculate from assets
+
             for asset in assets:
                 value = Decimal(str(asset.quantity)) * Decimal(str(asset.current_price))
                 total_value += value
                 asset_type = str(get_attribute(asset, 'type'))
-                
+
                 if asset_type == 'investment':
                     total_investments += value
                 elif asset_type == 'savings':
                     total_savings += value
-                
+
                 if asset_type != 'liability':
                     total_assets += value
                 else:
                     total_liabilities += value
-            
-            # Calculate from transactions
+
             for transaction in transactions:
                 amount = Decimal(str(transaction.amount))
                 trans_type = str(get_attribute(transaction, 'type'))
-                
+
                 if trans_type == 'income':
                     monthly_income += amount
                 elif trans_type == 'expense':
                     monthly_expenses += amount
-            
-            # Calculate derived metrics
+
             net_worth = total_assets - total_liabilities
             savings_rate = float(0)
             if monthly_income > Decimal('0'):
@@ -79,26 +79,24 @@ class PortfolioService:
         except Exception as e:
             raise e
 
-    def get_portfolio_analytics(self, user_id: str) -> PortfolioAnalytics:
+    async def get_portfolio_analytics(self, user_id: str) -> PortfolioAnalytics:
         """Get portfolio analytics"""
         try:
-            # Get all assets
-            assets = self.db.query(Asset).filter(Asset.user_id == user_id).all()
-            
-            # Calculate asset allocation
+            assets_result = await self.db.execute(select(Asset).filter(Asset.user_id == user_id))
+            assets = assets_result.scalars().all()
+
             total_value = Decimal('0')
             allocation = {}
-            
+
             for asset in assets:
                 value = Decimal(str(asset.quantity)) * Decimal(str(asset.current_price))
                 total_value += value
                 asset_type = str(get_attribute(asset, 'type'))
-                
+
                 if asset_type not in allocation:
                     allocation[asset_type] = Decimal('0')
                 allocation[asset_type] += value
 
-            # Convert to AssetAllocation objects
             asset_allocation = []
             for category, value in allocation.items():
                 percentage = float(value / total_value * 100) if total_value > 0 else 0
@@ -108,7 +106,6 @@ class PortfolioService:
                     percentage=percentage
                 ))
 
-            # Calculate performance metrics
             performance = [
                 PortfolioPerformance(
                     time_period="1M",
@@ -127,14 +124,12 @@ class PortfolioService:
                 )
             ]
 
-            # Calculate risk metrics
             risk_metrics = {
                 "volatility": 12.5,
                 "sharpe_ratio": 1.8,
                 "beta": 0.85
             }
 
-            # Calculate diversification score (example implementation)
             diversification_score = min(len(allocation) * 10, 100)
 
             return PortfolioAnalytics(
@@ -146,12 +141,13 @@ class PortfolioService:
         except Exception as e:
             raise e
 
-    def take_portfolio_snapshot(self, user_id: str) -> PortfolioSnapshot:
+    async def take_portfolio_snapshot(self, user_id: str) -> PortfolioSnapshot:
         """Take a snapshot of current portfolio value"""
         try:
             total_value = Decimal('0')
-            assets = self.db.query(Asset).filter(Asset.user_id == user_id).all()
-            
+            assets_result = await self.db.execute(select(Asset).filter(Asset.user_id == user_id))
+            assets = assets_result.scalars().all()
+
             for asset in assets:
                 value = Decimal(str(asset.quantity)) * Decimal(str(asset.current_price))
                 total_value += value
@@ -163,16 +159,14 @@ class PortfolioService:
                 snapshot_date=datetime.now(),
                 created_at=datetime.now()
             )
-            
             # Here you would typically save the snapshot to the database
-            # self.db.add(snapshot)
-            # self.db.commit()
-            
+            # await self.db.add(snapshot)
+            # await self.db.commit()
             return snapshot
         except Exception as e:
             raise e
 
-    def get_portfolio_snapshots(
+    async def get_portfolio_snapshots(
         self,
         user_id: str,
         start_date: datetime,
@@ -184,7 +178,7 @@ class PortfolioService:
             # Example implementation returning mock data
             snapshots = []
             current_date = start_date
-            
+
             while current_date <= end_date:
                 snapshots.append(PortfolioSnapshot(
                     id=str(uuid.uuid4()),
@@ -194,7 +188,7 @@ class PortfolioService:
                     created_at=current_date
                 ))
                 current_date += timedelta(days=1)
-            
+
             return snapshots
         except Exception as e:
             raise e

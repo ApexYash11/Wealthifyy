@@ -43,6 +43,11 @@ export default function LoginPage() {
       if (response.error) throw response.error;
       if (!response.session) throw new Error('No session returned');
 
+      // Set access token as cookie for backend compatibility
+      if (typeof window !== 'undefined' && response.session.access_token) {
+        document.cookie = `auth_token=${response.session.access_token}; path=/; secure; samesite=strict`;
+      }
+
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (error: any) {

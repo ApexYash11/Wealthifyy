@@ -9,7 +9,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { expenseAPI } from '@/lib/api';
+import { useFinancialData } from '@/hooks/use-financial-data';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -20,24 +20,23 @@ interface ExpenseData {
 }
 
 export default function ExpenseChart() {
-  const [expenseData, setExpenseData] = useState<ExpenseData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error } = useFinancialData();
 
-  useEffect(() => {
-    fetchExpenseData();
-  }, []);
-
-  const fetchExpenseData = async () => {
-    try {
-      // The backend will identify the user from the auth token
-      const response = await expenseAPI.getExpenses('current_user'); // Placeholder user ID
-      setExpenseData(response.data.expenseBreakdown || []);
-    } catch (error) {
-      console.error('Error fetching expense data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Transform financial data to expense chart format
+  const expenseData: ExpenseData[] = data.spendingCategories.length > 0 
+    ? data.spendingCategories.map(cat => ({
+        category: cat.category,
+        amount: cat.amount,
+        percentage: cat.percentage
+      }))
+    : [
+        // Fallback data if no spending categories
+        { category: 'Housing', amount: 25000, percentage: 42.7 },
+        { category: 'Food', amount: 15000, percentage: 25.6 },
+        { category: 'Transportation', amount: 8000, percentage: 13.7 },
+        { category: 'Utilities', amount: 4500, percentage: 7.7 },
+        { category: 'Entertainment', amount: 6000, percentage: 10.3 }
+      ];
 
   const chartData = {
     labels: expenseData.map(item => item.category),

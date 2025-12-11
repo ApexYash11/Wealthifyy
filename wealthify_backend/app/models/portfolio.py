@@ -8,7 +8,7 @@ class PortfolioSnapshot(Base):
     __tablename__ = 'portfolio_snapshots'
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    value = Column(Float)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    value = Column(Float)  # double precision in DB
+    timestamp = Column(DateTime)  # timestamp without time zone in DB
 
     user = relationship("User", back_populates="snapshots")

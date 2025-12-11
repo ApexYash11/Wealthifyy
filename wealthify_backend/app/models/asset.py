@@ -10,9 +10,9 @@ class Asset(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, index=True)
     symbol = Column(String, index=True)
-    quantity = Column(Float)
-    buy_price = Column(Float)
-    current_price = Column(Float)
+    quantity = Column(Float)  # double precision in DB
+    buy_price = Column(Float)  # double precision in DB
+    # Note: current_price doesn't exist in your DB schema - removed
     buy_date = Column(DateTime, default=datetime.utcnow)
     type = Column(String, default="crypto")
 

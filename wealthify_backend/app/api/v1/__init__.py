@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.v1.endpoints import dashboard
 from app.api.v1 import auth, assets, transactions, portfolio, predictions
 
 # Do NOT set a prefix here. The top-level application will mount this
@@ -13,3 +14,4 @@ api_router.include_router(assets.router)
 api_router.include_router(transactions.router)
 api_router.include_router(portfolio.router)
 api_router.include_router(predictions.router)
+api_router.include_router(dashboard.router)

@@ -33,19 +33,58 @@ export default function InsightsPage() {
     }
   });
 
-  // Suggestions based on spending
+  // Suggestions based on spending patterns
   const suggestions: string[] = [];
-  if (categoryBreakdown.some(c => c.name.toLowerCase() === 'food' && c.percent > 30)) {
-    suggestions.push('Try meal prepping to save on food costs.');
-  }
-  if (categoryBreakdown.some(c => c.name.toLowerCase() === 'transport' && c.percent > 15)) {
-    suggestions.push('Consider using public transport or carpooling.');
-  }
-  if (categoryBreakdown.some(c => c.name.toLowerCase() === 'entertainment' && c.percent > 10)) {
-    suggestions.push('Review your entertainment subscriptions for savings.');
-  }
+  
   if (categoryBreakdown.length === 0) {
     suggestions.push('Add transactions to get personalized insights!');
+    suggestions.push('Track your house rent, groceries, and transportation expenses for better insights.');
+    suggestions.push('Consider setting up automatic tracking for recurring expenses.');
+  } else {
+    // Housing suggestions
+    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('rent') && c.percent > 40)) {
+      suggestions.push('Your rent is over 40% of expenses. Consider finding a more affordable place or taking a roommate.');
+    }
+    
+    // Food suggestions
+    if (categoryBreakdown.some(c => (c.name.toLowerCase().includes('food') || c.name.toLowerCase().includes('groceries')) && c.percent > 25)) {
+      suggestions.push('Try meal prepping and cooking at home to save on food costs.');
+    }
+    
+    // Transportation suggestions
+    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('transport') && c.percent > 15)) {
+      suggestions.push('Consider using public transport, metro, or carpooling to reduce transportation costs.');
+    }
+    
+    // Entertainment suggestions
+    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('entertainment') && c.percent > 10)) {
+      suggestions.push('Review your entertainment subscriptions (Netflix, Spotify, etc.) for potential savings.');
+    }
+    
+    // Shopping suggestions
+    if (categoryBreakdown.some(c => c.name.toLowerCase().includes('shopping') && c.percent > 15)) {
+      suggestions.push('Set a monthly shopping budget and stick to it. Consider waiting 24 hours before making non-essential purchases.');
+    }
+    
+    // General financial health suggestions
+    const totalExpensePercent = categoryBreakdown.reduce((sum, cat) => sum + cat.percent, 0);
+    if (totalExpensePercent > 80) {
+      suggestions.push('Your expenses are quite high. Try to aim for the 50/30/20 rule: 50% needs, 30% wants, 20% savings.');
+    }
+    
+    // Positive suggestions
+    if (data.currentSavings > data.monthlyExpenses * 3) {
+      suggestions.push('Great job! You have a good emergency fund. Consider investing in mutual funds or stocks.');
+    } else if (data.currentSavings > 0) {
+      suggestions.push('Keep building your emergency fund. Aim for 3-6 months of expenses as emergency savings.');
+    }
+    
+    // Default helpful suggestions if no specific patterns found
+    if (suggestions.length === 0) {
+      suggestions.push('Consider using a budgeting app to track your expenses better.');
+      suggestions.push('Set up automatic savings to pay yourself first each month.');
+      suggestions.push('Review your subscriptions monthly and cancel unused ones.');
+    }
   }
 
   return (

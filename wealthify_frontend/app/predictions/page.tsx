@@ -19,8 +19,8 @@ interface PredictionData {
 }
 
 export default function PredictionsPage() {
-  const [income, setIncome] = useState('40000');
-  const [month, setMonth] = useState('August');
+  const [income, setIncome] = useState('85000');  // Set realistic Indian salary
+  const [month, setMonth] = useState('November');
   const [predictions, setPredictions] = useState<PredictionData | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -36,15 +36,21 @@ export default function PredictionsPage() {
     }
     setLoading(true);
     try {
-      // Simulate backend call
+      // Simulate backend call with realistic calculations
       // Replace with: const result = await predictionsAPI.generatePrediction(Number(income), month);
-      // For now, use static values to match screenshot
       setTimeout(() => {
+        const incomeAmount = Number(income);
+        // Realistic expense calculation: 65-75% of income
+        const expensePercent = Math.round(65 + Math.random() * 10);
+        const predictedExpense = Math.round(incomeAmount * (expensePercent / 100));
+        const predictedSavings = incomeAmount - predictedExpense;
+        const savingsPercent = Math.round((predictedSavings / incomeAmount) * 100);
+        
         setPredictions({
-          predictedExpense: 26000,
-          predictedSavings: 14000,
-          expensePercent: 65,
-          savingsPercent: 35,
+          predictedExpense,
+          predictedSavings,
+          expensePercent,
+          savingsPercent,
           month,
         });
         setLoading(false);

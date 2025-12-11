@@ -1,42 +1,68 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Dict, Any
 from app.core.get_current_user_supabase import get_current_user
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, Transaction
 from app.services.transaction_service import TransactionService
 from app.models.user import User
 from app.core.database import get_db
-from sqlalchemy.orm import Session
+from app.core.user_mapping import get_user_db_id, ensure_user_exists
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 @router.post("/", response_model=Transaction)
 async def create_transaction(
     transaction_data: TransactionCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Create a new transaction"""
-    transaction_service = TransactionService(db)
-    return transaction_service.create_transaction(str(current_user["id"]), transaction_data)
+    print(f"Received transaction data: {transaction_data}")
+    try:
+        # Map Supabase UUID to database integer ID
+        user_db_id = await get_user_db_id(current_user["id"], db)
+        if not user_db_id:
+            # Try to create user if they don't exist
+            user_db_id = await ensure_user_exists(current_user, db)
+            if not user_db_id:
+                raise HTTPException(status_code=404, detail="User not found in database and could not be created")
+        
+        transaction_service = TransactionService(db)
+        return await transaction_service.create_transaction(str(user_db_id), transaction_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating transaction: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create transaction: {str(e)}")
 
 @router.get("/", response_model=List[Transaction])
 async def get_transactions(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get all user transactions"""
+    # Map Supabase UUID to database integer ID
+    user_db_id = await get_user_db_id(current_user["id"], db)
+    if not user_db_id:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    
     transaction_service = TransactionService(db)
-    return transaction_service.get_transactions(str(current_user["id"]))
+    return await transaction_service.get_transactions(str(user_db_id))
 
 @router.get("/{transaction_id}", response_model=Transaction)
 async def get_transaction(
     transaction_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get a specific transaction"""
+    # Map Supabase UUID to database integer ID
+    user_db_id = await get_user_db_id(current_user["id"], db)
+    if not user_db_id:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    
     transaction_service = TransactionService(db)
-    transaction = transaction_service.get_transaction(str(current_user["id"]), transaction_id)
+    transaction = await transaction_service.get_transaction(str(user_db_id), transaction_id)
     if not transaction:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -48,13 +74,18 @@ async def get_transaction(
 async def update_transaction(
     transaction_id: str,
     transaction_data: TransactionUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Update a transaction"""
+    # Map Supabase UUID to database integer ID
+    user_db_id = await get_user_db_id(current_user["id"], db)
+    if not user_db_id:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    
     transaction_service = TransactionService(db)
-    updated = transaction_service.update_transaction(
-        str(current_user["id"]),
+    updated = await transaction_service.update_transaction(
+        str(user_db_id),
         transaction_id,
         transaction_data
     )
@@ -68,12 +99,17 @@ async def update_transaction(
 @router.delete("/{transaction_id}")
 async def delete_transaction(
     transaction_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Delete a transaction"""
+    # Map Supabase UUID to database integer ID
+    user_db_id = await get_user_db_id(current_user["id"], db)
+    if not user_db_id:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    
     transaction_service = TransactionService(db)
-    success = transaction_service.delete_transaction(str(current_user["id"]), transaction_id)
+    success = await transaction_service.delete_transaction(str(user_db_id), transaction_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

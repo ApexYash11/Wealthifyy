@@ -21,8 +21,17 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
     try:
         # Use the Supabase helper to get user from access token
         user = await supabase_auth.get_user(token)
+        import logging
+        logging.warning(f"[DEBUG] Decoded user from token: {user}")
+
+        # If the user object is wrapped under a 'user' key, extract it
+        if isinstance(user, dict) and 'user' in user and isinstance(user['user'], dict):
+            user = user['user']
+            logging.warning(f"[DEBUG] Unwrapped user object: {user}")
+
         # Ensure 'id' key exists for downstream code
         if "id" not in user:
+            logging.warning(f"[DEBUG] User object missing 'id'. Full user: {user}")
             if "user_id" in user:
                 user["id"] = user["user_id"]
             elif "sub" in user:
@@ -30,10 +39,13 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
             elif "uuid" in user:
                 user["id"] = user["uuid"]
             else:
+                logging.error(f"[DEBUG] User ID not found in token. Token: {token}")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User ID not found in token")
         return user
     except HTTPException:
         # propagate known HTTP exceptions
         raise
     except Exception as e:
+        import logging
+        logging.error(f"[DEBUG] Exception in get_current_user: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))

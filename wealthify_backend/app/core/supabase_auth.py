@@ -62,10 +62,10 @@ class SupabaseAuth:
     async def sign_in_with_oauth(self, provider_config: Dict[str, Any]) -> Dict[str, Any]:
         """Generate OAuth URL for authentication"""
         try:
-            credentials = {
-                "provider": "google",
-                "options": provider_config.get("options", {})
-            }
+            credentials = SignInWithOAuthCredentials(
+                provider=Provider.GOOGLE,
+                options=provider_config.get("options", {})
+            )
             auth_response = self.supabase.auth.sign_in_with_oauth(credentials)
             return {"url": auth_response.url}
         except Exception as e:

@@ -54,3 +54,6 @@ async def health_check():
         "database": "available" if DATABASE_AVAILABLE else "unavailable",
         "version": settings.VERSION
     }
+
+# Force reload trigger
+

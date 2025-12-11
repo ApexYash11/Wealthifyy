@@ -16,6 +16,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name?: string;
+  username?: string;
 }
 
 export interface AuthResponse {
@@ -29,6 +30,8 @@ export interface UserInfo {
   email: string;
   user_metadata?: {
     name?: string;
+    full_name?: string;
+    avatar_url?: string;
   };
 }
 
@@ -56,6 +59,7 @@ export const authAPI = {
       options: {
         data: {
           name: userData.name,
+          username: userData.username,
         },
       },
     });
@@ -69,15 +73,29 @@ export const authAPI = {
 
   // Get current user info
   getCurrentUser: async (): Promise<UserInfo | null> => {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error || !user) return null;
+    try {
+      const { safeGetUser } = await import('./auth-helpers');
+      const { user, error, shouldClearAuth } = await safeGetUser();
+      
+      if (shouldClearAuth) {
+        // Clear auth and redirect if tokens are invalid
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
+        return null;
+      }
+      
+      if (error || !user) return null;
 
-    return {
-      id: user.id,
-      email: user.email!,
-      user_metadata: user.user_metadata,
-    };
+      return {
+        id: user.id,
+        email: user.email!,
+        user_metadata: user.user_metadata,
+      };
+    } catch (error) {
+      console.error('Get current user error:', error);
+      return null;
+    }
   },
 
   // Logout

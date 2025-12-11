@@ -15,8 +15,24 @@ if (!supabaseUrl || !supabaseKey) {
   });
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    // Handle refresh token errors gracefully
+    storageKey: 'wealthify-auth',
+  }
+});
 
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
   console.log('Auth state changed:', event, session?.user?.id);
+  
+  // Handle token refresh errors
+  if (event === 'TOKEN_REFRESHED') {
+    console.log('Token refreshed successfully');
+  } else if (event === 'SIGNED_OUT') {
+    // Clear any cached auth data on sign out
+    console.log('User signed out');
+  }
 });

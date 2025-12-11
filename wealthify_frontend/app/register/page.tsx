@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { authAPI, setTokenInCookies } from '@/lib/auth-api';
+import { authAPI } from '@/lib/auth-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -75,8 +75,12 @@ export default function RegisterPage() {
         name: formData.name,
       });
 
+      if (response.error) throw response.error;
+
       // Set token in cookies
-      setTokenInCookies(response.access_token);
+      if (response.session?.access_token) {
+        document.cookie = `auth_token=${response.session.access_token}; path=/; secure; samesite=strict`;
+      }
 
       // Redirect to dashboard
       router.push('/dashboard');

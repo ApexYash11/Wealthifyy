@@ -27,7 +27,8 @@ export default function Sidebar() {
       try {
         const user = await authAPI.getCurrentUser();
         if (!mounted) return;
-        if (user?.user_metadata?.name) setDisplayName(user.user_metadata.name as string);
+        if (user?.user_metadata?.name) setDisplayName(user.user_metadata.name);
+        else if (user?.user_metadata?.full_name) setDisplayName(user.user_metadata.full_name);
         else if (user?.email) setDisplayName(user.email);
       } catch (e) {
         console.error('Failed to load current user for sidebar:', e);

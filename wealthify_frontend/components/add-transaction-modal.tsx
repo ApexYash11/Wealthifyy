@@ -98,8 +98,8 @@ export default function AddTransactionModal({ isOpen, onClose, onSuccess }: AddT
       await transactionAPI.addTransaction({
         type,
         description,
-        amount: Number.parseFloat(amount),
-        date,
+        amount: Number.parseFloat(amount), // Convert to Decimal-compatible format
+        date: new Date(date).toISOString(), // Convert to datetime-compatible format
         category,
       })
       resetForm()
@@ -110,9 +110,25 @@ export default function AddTransactionModal({ isOpen, onClose, onSuccess }: AddT
         description: `${type === "income" ? "Income" : "Expense"} of ₹${amount} has been added.`,
       })
     } catch (err: any) {
+      // Extract error details from axios response
+      const errorDetail = err?.response?.data?.detail || 
+                         err?.response?.data?.message ||
+                         err?.message || 
+                         "Failed to add transaction. Please check your network connection.";
+      
+      // Log the full error for debugging
+      console.error('Transaction submission error:', err);
+      console.error('Transaction submission error details:', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+        message: err?.message,
+        code: err?.code,
+        fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
+      });
+
       toast({
         title: "Error adding transaction",
-        description: err?.response?.data?.detail || err.message || "Failed to add transaction.",
+        description: errorDetail,
         variant: "destructive",
       })
     } finally {
