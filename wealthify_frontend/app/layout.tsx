@@ -14,6 +14,8 @@ export const metadata = {
   generator: 'v0.dev'
 }
 
+import { FinancialProvider } from "@/context/financial-context"
+
 export default function RootLayout({
   children,
 }: {
@@ -23,11 +25,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className + " bg-gray-50 dark:bg-gray-900 min-h-screen"}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthTokenCleaner />
-          <ClientLayout>
-            {children}
-          </ClientLayout>
-          <Toaster />
+          <FinancialProvider>
+            <AuthTokenCleaner />
+            <ClientLayout>
+              {children}
+            </ClientLayout>
+            <Toaster />
+          </FinancialProvider>
         </ThemeProvider>
       </body>
     </html>
