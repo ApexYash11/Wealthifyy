@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
@@ -9,7 +9,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-export default function AuthCallbackPage() {
+function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -28,9 +28,24 @@ export default function AuthCallbackPage() {
         }
 
         if (!session) {
-          setStatus('error');
-          setMessage('No session found');
-          return;
+          // If no session, check if we have a code to exchange (handled automatically by supabase-js usually, 
+          // but good to be robust)
+          const code = searchParams.get('code');
+          if (code) {
+             // The supabase client should handle this automatically if configured correctly,
+             // but we'll wait a moment for the async process
+             await new Promise(resolve => setTimeout(resolve, 500));
+             const { data: { session: newSession }, error: newError } = await supabase.auth.getSession();
+             if (newError || !newSession) {
+                setStatus('error');
+                setMessage('No session found after callback.');
+                return;
+             }
+          } else {
+            setStatus('error');
+            setMessage('No session found');
+            return;
+          }
         }
 
         setStatus('success');
@@ -81,6 +96,19 @@ export default function AuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 to-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-white" />
+        <p className="text-white">Loading authentication...</p>
+      </div>
+    }>
+      <CallbackContent />
+    </Suspense>
   );
 }
 
