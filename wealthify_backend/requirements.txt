@@ -17,6 +17,7 @@ annotated-types>=0.7.0
 apscheduler>=3.10.4
 bcrypt>=4.3.0
 pydantic>=2.11.7
+pydantic-settings>=2.0.0
 supabase>=2.3.4
 python-dateutil>=2.9.0.post0
 pytz>=2025.2
