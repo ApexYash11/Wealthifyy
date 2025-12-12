@@ -1,5 +1,4 @@
 import { supabase } from './supabaseClient';
-
 import axios from 'axios';
 
 // Use environment variables with fallbacks
@@ -8,14 +7,13 @@ const API_BASE_URL = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:80
 // Create axios instance with better error handling
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000, // Increased timeout for production
   // Allow cookies (session cookie set by backend) to be sent with requests
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
-
 
 // Attach Supabase access token to every request and refresh if needed
 apiClient.interceptors.request.use(

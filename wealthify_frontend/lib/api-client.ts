@@ -8,8 +8,8 @@ class ApiClient {
   private baseUrl: string;
 
   constructor() {
-    // Base host (e.g. http://localhost:8000). API prefix is added here to ensure
-    // all requests target the backend's v1 routes (e.g. /api/v1/transactions).
+    // Base host (e.g. https://wealthify-production.up.railway.app). 
+    // API prefix is added here to ensure all requests target the backend's v1 routes.
     const host = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     this.baseUrl = `${host.replace(/\/$/, '')}/api/v1`;
   }
