@@ -1,19 +1,33 @@
 import xgboost as xgb
-import pickle
 import random
 import numpy as np
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta
 import math
+import logging
+import os
 
-# Load the pre-trained XGBoost expense model (JSON)
-expense_model = xgb.Booster()
-expense_model.load_model("expense_model.json")
+# Configure logging
+logger = logging.getLogger(__name__)
 
-# Load the pre-trained savings model (Pickle)
-with open("budget_model.pkl", "rb") as f:
-    budget_model = pickle.load(f)
+# Load the pre-trained XGBoost expense model (JSON format - stable for Docker/Railway)
+try:
+    expense_model = xgb.Booster()
+    expense_model.load_model("expense_model.json")
+    logger.info("Successfully loaded expense_model.json")
+except Exception as e:
+    logger.error(f"Failed to load expense_model.json: {str(e)}")
+    raise RuntimeError(f"Critical: Could not load ML models. Error: {str(e)}")
+
+# Load the pre-trained budget model (JSON format - stable for Docker/Railway)
+try:
+    budget_model = xgb.Booster()
+    budget_model.load_model("budget_model.json")
+    logger.info("Successfully loaded budget_model.json")
+except Exception as e:
+    logger.error(f"Failed to load budget_model.json: {str(e)}")
+    raise RuntimeError(f"Critical: Could not load ML models. Error: {str(e)}")
 
 def get_user_expense_history(user_id: int, db: Session):
     """Get user's expense history for analysis."""
