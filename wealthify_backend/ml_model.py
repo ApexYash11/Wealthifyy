@@ -11,22 +11,29 @@ import os
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Get the directory where this file (ml_model.py) is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Define absolute paths to models
+EXPENSE_MODEL_PATH = os.path.join(BASE_DIR, "expense_model.json")
+BUDGET_MODEL_PATH = os.path.join(BASE_DIR, "budget_model.json")
+
 # Load the pre-trained XGBoost expense model (JSON format - stable for Docker/Railway)
 try:
     expense_model = xgb.Booster()
-    expense_model.load_model("expense_model.json")
-    logger.info("Successfully loaded expense_model.json")
+    expense_model.load_model(EXPENSE_MODEL_PATH)
+    logger.info(f"Successfully loaded expense_model.json from {EXPENSE_MODEL_PATH}")
 except Exception as e:
-    logger.error(f"Failed to load expense_model.json: {str(e)}")
+    logger.error(f"Failed to load expense_model.json from {EXPENSE_MODEL_PATH}: {str(e)}")
     raise RuntimeError(f"Critical: Could not load ML models. Error: {str(e)}")
 
 # Load the pre-trained budget model (JSON format - stable for Docker/Railway)
 try:
     budget_model = xgb.Booster()
-    budget_model.load_model("budget_model.json")
-    logger.info("Successfully loaded budget_model.json")
+    budget_model.load_model(BUDGET_MODEL_PATH)
+    logger.info(f"Successfully loaded budget_model.json from {BUDGET_MODEL_PATH}")
 except Exception as e:
-    logger.error(f"Failed to load budget_model.json: {str(e)}")
+    logger.error(f"Failed to load budget_model.json from {BUDGET_MODEL_PATH}: {str(e)}")
     raise RuntimeError(f"Critical: Could not load ML models. Error: {str(e)}")
 
 def get_user_expense_history(user_id: int, db: Session):
