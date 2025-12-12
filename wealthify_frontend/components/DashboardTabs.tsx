@@ -56,7 +56,8 @@ export default function DashboardTabs() {
         const token = localStorage.getItem('jwt');
         if (!token) return;
 
-        const response = await fetch('http://localhost:8000/assets', {
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const response = await fetch(`${API_BASE_URL}/assets`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

@@ -15,7 +15,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000/feedback';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const backendUrl = `${API_BASE_URL}/feedback`;
     console.log('🔍 DEBUG: Sending to backend URL:', backendUrl);
     console.log('🔍 DEBUG: Sending message as:', message);
     

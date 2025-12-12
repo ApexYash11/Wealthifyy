@@ -19,14 +19,22 @@ app = FastAPI(
 )
 
 # Set up CORS
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "https://wealthifyy-beta.vercel.app",  # Vercel Frontend
+    "https://wealthify-production.up.railway.app" # Self (optional but good for docs)
+]
+
+# Add any origins from settings
+if settings.BACKEND_CORS_ORIGINS:
+    origins.extend(settings.BACKEND_CORS_ORIGINS)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS or [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

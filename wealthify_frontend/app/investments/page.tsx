@@ -201,7 +201,8 @@ function InvestmentContent() {
 
   const handleSnapshot = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}/api/v1/portfolio/snapshot`, {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      await fetch(`${API_BASE_URL}/api/v1/portfolio/snapshot`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
