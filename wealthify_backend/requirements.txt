@@ -24,3 +24,4 @@ pytz>=2025.2
 scipy>=1.16.0
 xgboost>=3.0.2
 asyncpg>=0.29.0
+email-validator==2.1.0.post1
